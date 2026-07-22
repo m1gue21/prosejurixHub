@@ -5,7 +5,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    navigate('/admin/procesos', { replace: true });
+    navigate('/admin/usuarios', { replace: true });
   }, [navigate]);
 
   return null;

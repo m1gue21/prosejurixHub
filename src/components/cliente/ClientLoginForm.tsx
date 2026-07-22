@@ -25,7 +25,7 @@ const ClientLoginForm = ({ onLogin }: ClientLoginFormProps) => {
           </span>
           <div>
             <h2 className="text-2xl font-semibold sm:text-3xl">Ingresa a tu portal</h2>
-            <p className="mt-1 text-sm text-blue-100/80">Introduce tu ID de cliente único para continuar</p>
+            <p className="mt-1 text-sm text-blue-100/80">Introduce tu ID de usuario para continuar</p>
           </div>
         </div>
       </div>
@@ -33,7 +33,7 @@ const ClientLoginForm = ({ onLogin }: ClientLoginFormProps) => {
       <div className="space-y-6 px-6 py-8 sm:px-8">
         <form onSubmit={handleSubmit} className="space-y-5">
           <Input
-            label="ID del Cliente"
+            label="ID de usuario"
             type="number"
             value={clienteId}
             onChange={(e) => setClienteId(e.target.value)}

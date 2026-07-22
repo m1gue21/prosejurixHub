@@ -65,8 +65,8 @@ const AdminLogin = () => {
       // Esperar un momento antes de navegar para que se vea el último check
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      // Navegar al dashboard
-      navigate('/admin/procesos');
+      // Navegar al panel de usuarios
+      navigate('/admin/usuarios');
     } catch (error) {
       console.error('Error en login:', error);
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';

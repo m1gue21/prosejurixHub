@@ -11,7 +11,7 @@ interface SearchBarProps {
 
 const SearchBar = ({ placeholder = 'Buscar...', value, onChange, className = '', showClear = true }: SearchBarProps) => {
   return (
-    <div className={`relative flex-1 max-w-md ${className}`}>
+    <div className={`relative w-full ${className}`}>
       <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-blue-50 p-2 text-blue-500 shadow-sm">
         <Search className="h-4 w-4" />
       </div>
