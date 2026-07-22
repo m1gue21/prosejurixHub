@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Button from '../common/Button';
+import { computeCaducidadFromAccidente, formatFechaEs } from '../../lib/caducidad';
 
 export interface VinculacionFormData {
   nombre: string;
@@ -15,6 +16,7 @@ export interface VinculacionFormData {
   tieneVehiculoInvolucrado: boolean;
   tituloTramite?: string;
   fechaAccidente?: string;
+  fechaEstructuracion?: string;
   lugarAccidente?: string;
   aseguradora?: string;
   responsabilidad?: string;
@@ -41,6 +43,11 @@ const VinculacionForm = ({ onSubmit, onCancel }: VinculacionFormProps) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const caducidadPreview = useMemo(
+    () => computeCaducidadFromAccidente(form.fechaAccidente, form.responsabilidad),
+    [form.fechaAccidente, form.responsabilidad]
+  );
+
   return (
     <form
       className="space-y-5"
@@ -53,8 +60,55 @@ const VinculacionForm = ({ onSubmit, onCancel }: VinculacionFormProps) => {
       <div>
         <h3 className="text-lg font-semibold text-slate-900">Vinculación del usuario</h3>
         <p className="text-sm text-slate-500">
-          Crea el usuario, guarda sus datos y abre el trámite principal con las etapas del diagrama.
+          Prioriza fechas del caso: accidente, estructuración y caducidad según el tipo.
         </p>
+      </div>
+
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-800">
+          Plazos prioritarios
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="text-sm">
+            <span className="mb-1 block font-semibold text-slate-800">Fecha accidente *</span>
+            <input
+              type="date"
+              required
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"
+              value={form.fechaAccidente || ''}
+              onChange={(e) => set('fechaAccidente', e.target.value)}
+            />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block font-semibold text-slate-800">Fecha estructuración</span>
+            <input
+              type="date"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"
+              value={form.fechaEstructuracion || ''}
+              onChange={(e) => set('fechaEstructuracion', e.target.value)}
+            />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block font-semibold text-slate-800">Tipo de responsabilidad</span>
+            <select
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"
+              value={form.responsabilidad || ''}
+              onChange={(e) => set('responsabilidad', e.target.value)}
+            >
+              <option value="Extracontractual">Extracontractual (5 años)</option>
+              <option value="Contractual">Contractual (2 años)</option>
+            </select>
+          </label>
+          <div className="rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-sm">
+            <p className="font-semibold text-slate-800">Caducidad calculada</p>
+            <p className="mt-1 text-base font-bold text-amber-900">
+              {caducidadPreview ? formatFechaEs(caducidadPreview) : 'Completa fecha y tipo'}
+            </p>
+            <p className="mt-1 text-[11px] text-slate-500">
+              Contractual = 2 años · Extracontractual = 5 años desde el accidente
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -124,15 +178,6 @@ const VinculacionForm = ({ onSubmit, onCancel }: VinculacionFormProps) => {
             className="w-full rounded-xl border border-slate-200 px-3 py-2"
             value={form.tituloTramite || ''}
             onChange={(e) => set('tituloTramite', e.target.value)}
-          />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block font-medium">Fecha accidente</span>
-          <input
-            type="date"
-            className="w-full rounded-xl border border-slate-200 px-3 py-2"
-            value={form.fechaAccidente || ''}
-            onChange={(e) => set('fechaAccidente', e.target.value)}
           />
         </label>
         <label className="text-sm">

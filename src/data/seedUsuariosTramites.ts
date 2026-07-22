@@ -1,6 +1,7 @@
 import { mockClientes, mockProcesos, MockProceso } from './mocks';
 import { createInitialEtapas, getEtapaCatalog } from './tramitesCatalog';
 import { createDocumentoFromUrl } from '../lib/documentHelpers';
+import { addMonthsIso, computeCaducidadFromAccidente } from '../lib/caducidad';
 import {
   Comunicacion,
   EstadoGeneralTramite,
@@ -230,19 +231,34 @@ function mapProcesoToTramite(
   const estadoGeneral: EstadoGeneralTramite =
     p.estado === 'finalizado' ? 'finalizado' : p.estado === 'en_espera' ? 'en_espera' : 'activo';
 
+  const responsabilidad = p.responsabilidad || 'Extracontractual';
+  const fechaAccidente = p.fechaAccidente || p.fecha;
+  const caducidad =
+    computeCaducidadFromAccidente(fechaAccidente, responsabilidad) ||
+    p.caducidad ||
+    undefined;
+
+  // Demo: algunos casos con estructuración ~8 meses después del accidente
+  const fechaEstructuracion =
+    fechaAccidente && Number(String(p.id).replace(/\D/g, '')) % 3 === 0
+      ? addMonthsIso(fechaAccidente, 8) || undefined
+      : undefined;
+
   return {
     id: `t-${p.id}`,
     usuarioId,
     titulo: p.claseProceso || `Caso ${p.demandado || p.aseguradora || p.id}`,
-    casoLabel: [p.aseguradora || p.demandado, p.fechaAccidente || p.fecha]
+    casoLabel: [p.aseguradora || p.demandado, fechaAccidente]
       .filter(Boolean)
       .join(' · '),
     estadoGeneral,
     etapaActual,
     esCasoAdicional,
-    fechaAccidente: p.fechaAccidente || p.fecha,
+    fechaAccidente,
+    fechaEstructuracion,
     lugarAccidente: p.lugarAccidente,
-    responsabilidad: p.responsabilidad,
+    responsabilidad,
+    caducidad,
     aseguradora: p.aseguradora || p.demandado,
     radicado: p.radicado,
     fiscalia: p.fiscalia,
@@ -341,13 +357,15 @@ export const buildSeedFromMocks = (): SeedData => {
   }
 
   const comunicaciones: Comunicacion[] = [];
-  const sampleUsuarios = usuarios.slice(0, 8);
 
-  sampleUsuarios.forEach((u, i) => {
+  usuarios.forEach((u, i) => {
     const tramite = tramites.find((t) => t.usuarioId === u.id && !t.esCasoAdicional);
     const baseDate = u.fechaVinculacion || '2025-11-01';
     const day = (offset: number) => {
       const d = new Date(`${baseDate}T12:00:00`);
+      if (Number.isNaN(d.getTime())) {
+        return new Date().toISOString();
+      }
       d.setDate(d.getDate() + offset);
       return d.toISOString();
     };

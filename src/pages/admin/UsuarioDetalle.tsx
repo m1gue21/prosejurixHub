@@ -6,6 +6,7 @@ import Modal from '../../components/common/Modal';
 import TramitePipeline from '../../components/admin/TramitePipeline';
 import TramiteTimeline from '../../components/admin/TramiteTimeline';
 import ArchivosTramite from '../../components/admin/ArchivosTramite';
+import CaducidadPriorityPanel from '../../components/admin/CaducidadPriorityPanel';
 import ComunicacionesTimeline from '../../components/admin/ComunicacionesTimeline';
 import EtapaPanel from '../../components/admin/EtapaPanel';
 import { useUsuarios } from '../../hooks/useUsuarios';
@@ -38,7 +39,7 @@ const UsuarioDetalle = () => {
   const [comunicaciones, setComunicaciones] = useState<Comunicacion[]>([]);
   const [tramiteId, setTramiteId] = useState<string | null>(null);
   const [selectedEtapa, setSelectedEtapa] = useState<TipoEtapa | undefined>();
-  const [vista, setVista] = useState<VistaTramite>('timeline');
+  const [vista, setVista] = useState<VistaTramite>('comunicaciones');
   const [showExtra, setShowExtra] = useState(false);
   const [extraTitulo, setExtraTitulo] = useState('Caso adicional');
 
@@ -92,10 +93,15 @@ const UsuarioDetalle = () => {
     setComunicaciones(getComunicaciones(usuario.id));
   };
 
-  const tabs: { id: VistaTramite; label: string; icon: typeof Waypoints }[] = [
-    { id: 'timeline', label: 'Timeline', icon: Waypoints },
+  const tabs: { id: VistaTramite; label: string; icon: typeof Waypoints; count?: number }[] = [
+    {
+      id: 'comunicaciones',
+      label: 'Comunicaciones',
+      icon: MessagesSquare,
+      count: comunicaciones.length
+    },
+    { id: 'timeline', label: 'Timeline etapas', icon: Waypoints },
     { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
-    { id: 'comunicaciones', label: 'Comunicaciones', icon: MessagesSquare },
     { id: 'archivos', label: 'Archivos', icon: FileText }
   ];
 
@@ -141,6 +147,20 @@ const UsuarioDetalle = () => {
       </header>
 
       <main className="mx-auto max-w-7xl space-y-4 safe-px py-4 sm:space-y-6 sm:px-6 sm:py-8 lg:px-8">
+        <CaducidadPriorityPanel
+          tramite={tramite}
+          editable
+          onChange={(updates) => {
+            updateTramite(tramite.id, updates);
+            reloadLocal();
+            notify({
+              type: 'success',
+              title: 'Plazos actualizados',
+              message: 'Caducidad recalculada si aplica'
+            });
+          }}
+        />
+
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
           <h2 className="mb-3 text-base font-semibold text-slate-900 sm:mb-4 sm:text-lg">
             Datos de vinculación
@@ -308,6 +328,15 @@ const UsuarioDetalle = () => {
                 >
                   <Icon className="h-4 w-4" />
                   {tab.label}
+                  {typeof tab.count === 'number' && (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
+                        vista === tab.id ? 'bg-white/20 text-white' : 'bg-white text-slate-700'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  )}
                 </button>
               );
             })}

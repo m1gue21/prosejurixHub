@@ -17,6 +17,12 @@ import Modal from '../../components/common/Modal';
 import VinculacionForm from '../../components/admin/VinculacionForm';
 import { useUsuarios } from '../../hooks/useUsuarios';
 import { getEtapaLabel } from '../../data/tramitesCatalog';
+import {
+  formatFechaEs,
+  getCaducidadInfo,
+  urgenciaRank,
+  urgenciaStyles
+} from '../../lib/caducidad';
 import { useNotifications } from '../../components/common/NotificationProvider';
 import { useConfirm } from '../../components/common/ConfirmProvider';
 
@@ -30,13 +36,27 @@ const Usuarios = () => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return usuarios;
-    return usuarios.filter(
-      (u) =>
-        u.nombre.toLowerCase().includes(q) ||
-        u.cedula.toLowerCase().includes(q) ||
-        (u.ciudad || '').toLowerCase().includes(q)
-    );
+    const list = !q
+      ? usuarios
+      : usuarios.filter(
+          (u) =>
+            u.nombre.toLowerCase().includes(q) ||
+            u.cedula.toLowerCase().includes(q) ||
+            (u.ciudad || '').toLowerCase().includes(q)
+        );
+
+    return [...list].sort((a, b) => {
+      const ta = a.tramites.find((t) => !t.esCasoAdicional) || a.tramites[0];
+      const tb = b.tramites.find((t) => !t.esCasoAdicional) || b.tramites[0];
+      const ia = ta ? getCaducidadInfo(ta) : null;
+      const ib = tb ? getCaducidadInfo(tb) : null;
+      const ra = ia ? urgenciaRank(ia.urgencia) : 9;
+      const rb = ib ? urgenciaRank(ib.urgencia) : 9;
+      if (ra !== rb) return ra - rb;
+      const da = ia?.diasRestantes ?? 99999;
+      const db = ib?.diasRestantes ?? 99999;
+      return da - db;
+    });
   }, [usuarios, search]);
 
   const cards = [
@@ -110,7 +130,7 @@ const Usuarios = () => {
             <div>
               <h2 className="text-base font-semibold text-slate-900 sm:text-lg">Listado de usuarios</h2>
               <p className="text-xs text-slate-500 sm:text-sm">
-                {filtered.length} listos para gestionar
+                Ordenados por urgencia de caducidad · {filtered.length} usuarios
               </p>
             </div>
             <div className="w-full sm:max-w-sm">
@@ -133,6 +153,8 @@ const Usuarios = () => {
               <div className="space-y-3 md:hidden">
                 {filtered.map((u) => {
                   const principal = u.tramites.find((t) => !t.esCasoAdicional) || u.tramites[0];
+                  const cad = principal ? getCaducidadInfo(principal) : null;
+                  const badge = cad ? urgenciaStyles[cad.urgencia].badge : '';
                   return (
                     <button
                       key={u.id}
@@ -141,8 +163,13 @@ const Usuarios = () => {
                       className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-left transition active:scale-[0.99] hover:border-slate-200 hover:bg-white"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="font-mono text-xs text-slate-400">#{u.id}</span>
+                          {cad && (
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${badge}`}>
+                              Caducidad {formatFechaEs(cad.caducidad)}
+                            </span>
+                          )}
                           {u.tramites.length > 1 && (
                             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
                               +{u.tramites.length - 1} caso
@@ -151,8 +178,10 @@ const Usuarios = () => {
                         </div>
                         <p className="mt-0.5 truncate font-semibold text-slate-900">{u.nombre}</p>
                         <p className="mt-1 text-xs text-slate-500">
-                          {u.cedula}
-                          {u.ciudad ? ` · ${u.ciudad}` : ''}
+                          Accidente {formatFechaEs(principal?.fechaAccidente)}
+                          {principal?.fechaEstructuracion
+                            ? ` · Estruct. ${formatFechaEs(principal.fechaEstructuracion)}`
+                            : ''}
                         </p>
                         <p className="mt-2 text-sm text-blue-700">
                           {principal ? getEtapaLabel(principal.etapaActual, true) : 'Sin trámite'}
@@ -174,22 +203,36 @@ const Usuarios = () => {
                     <tr>
                       <th className="px-3 py-3">ID</th>
                       <th className="px-3 py-3">Usuario</th>
-                      <th className="px-3 py-3">Cédula</th>
+                      <th className="px-3 py-3">Accidente</th>
+                      <th className="px-3 py-3">Caducidad</th>
                       <th className="px-3 py-3">Etapa actual</th>
                       <th className="px-3 py-3">Estado</th>
                       <th className="px-3 py-3">Ciudad</th>
-                      <th className="px-3 py-3">Vinculación</th>
                       <th className="px-3 py-3" />
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.map((u) => {
                       const principal = u.tramites.find((t) => !t.esCasoAdicional) || u.tramites[0];
+                      const cad = principal ? getCaducidadInfo(principal) : null;
                       return (
                         <tr key={u.id} className="border-b border-slate-100 hover:bg-slate-50">
                           <td className="px-3 py-3 font-mono text-slate-500">{u.id}</td>
                           <td className="px-3 py-3 font-semibold text-slate-900">{u.nombre}</td>
-                          <td className="px-3 py-3">{u.cedula}</td>
+                          <td className="px-3 py-3 text-slate-700">
+                            {formatFechaEs(principal?.fechaAccidente)}
+                          </td>
+                          <td className="px-3 py-3">
+                            {cad ? (
+                              <span
+                                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${urgenciaStyles[cad.urgencia].badge}`}
+                              >
+                                {formatFechaEs(cad.caducidad)}
+                              </span>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
                           <td className="px-3 py-3">
                             {principal ? getEtapaLabel(principal.etapaActual, true) : '—'}
                             {u.tramites.length > 1 && (
@@ -200,7 +243,6 @@ const Usuarios = () => {
                           </td>
                           <td className="px-3 py-3 capitalize">{principal?.estadoGeneral || '—'}</td>
                           <td className="px-3 py-3">{u.ciudad || '—'}</td>
-                          <td className="px-3 py-3">{u.fechaVinculacion}</td>
                           <td className="px-3 py-3">
                             <div className="flex justify-end gap-2">
                               <Button size="sm" onClick={() => navigate(`/admin/usuarios/${u.id}`)}>

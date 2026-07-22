@@ -4,6 +4,12 @@ import { ArrowLeft, CheckCircle2, Circle } from 'lucide-react';
 import Button from '../../components/common/Button';
 import { mockUserStore } from '../../lib/mockUserStore';
 import { getEtapaLabel, PIPELINE_LAYOUT } from '../../data/tramitesCatalog';
+import {
+  formatFechaEs,
+  getCaducidadInfo,
+  labelTipoResponsabilidad,
+  urgenciaStyles
+} from '../../lib/caducidad';
 import { TipoEtapa, Tramite, Usuario } from '../../types/tramite';
 
 const flattenLayout = (layout: Array<TipoEtapa | TipoEtapa[]>): TipoEtapa[] =>
@@ -78,6 +84,50 @@ const TramiteDetalleCliente = () => {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-4 safe-px py-5 sm:space-y-6 sm:px-6 sm:py-8">
+        {(() => {
+          const cad = getCaducidadInfo(tramite);
+          const styles = urgenciaStyles[cad.urgencia];
+          return (
+            <section className={`rounded-2xl border p-4 shadow-sm sm:rounded-3xl sm:p-6 ${styles.panel}`}>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Fechas clave</p>
+                  <h2 className={`mt-1 text-lg font-bold sm:text-xl ${styles.accent}`}>
+                    Plazo de tu caso
+                  </h2>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${styles.badge}`}>
+                  {cad.labelUrgencia}
+                </span>
+              </div>
+              <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs text-slate-500">Fecha del accidente</dt>
+                  <dd className="font-semibold text-slate-900">
+                    {formatFechaEs(cad.fechaAccidente)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500">Estructuración</dt>
+                  <dd className="font-semibold text-slate-900">
+                    {formatFechaEs(cad.fechaEstructuracion)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500">Tipo</dt>
+                  <dd className="font-semibold text-slate-900">
+                    {labelTipoResponsabilidad(cad.tipo)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500">Caducidad</dt>
+                  <dd className="font-semibold text-slate-900">{formatFechaEs(cad.caducidad)}</dd>
+                </div>
+              </dl>
+            </section>
+          );
+        })()}
+
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
           <p className="text-sm text-slate-500">Etapa actual</p>
           <h2 className="mt-1 text-xl font-semibold text-slate-900 sm:text-2xl">

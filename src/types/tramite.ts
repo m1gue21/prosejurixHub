@@ -113,9 +113,15 @@ export interface Tramite {
   estadoGeneral: EstadoGeneralTramite;
   etapaActual: TipoEtapa;
   esCasoAdicional: boolean;
+  /** Fecha del accidente (base de caducidad) */
   fechaAccidente?: string;
+  /** Fecha de estructuración (médico-legal); también prioritaria en el caso */
+  fechaEstructuracion?: string;
   lugarAccidente?: string;
+  /** Contractual (2 años) o Extracontractual (5 años) */
   responsabilidad?: string;
+  /** Calculada: accidente + 2 o 5 años según tipo */
+  caducidad?: string;
   aseguradora?: string;
   radicado?: string;
   fiscalia?: string;
@@ -132,6 +138,8 @@ export interface Tramite {
   fechaIngreso: string;
   etapas: EtapaTramite[];
 }
+
+export type TipoResponsabilidad = 'contractual' | 'extracontractual';
 
 export interface UsuarioConTramites extends Usuario {
   tramites: Tramite[];

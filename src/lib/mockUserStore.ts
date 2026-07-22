@@ -1,5 +1,6 @@
 import { buildSeedFromMocks } from '../data/seedUsuariosTramites';
 import { createInitialEtapas, getEtapaLabel } from '../data/tramitesCatalog';
+import { computeCaducidadFromAccidente } from './caducidad';
 import {
   ChecklistItem,
   Comunicacion,
@@ -13,7 +14,7 @@ import {
 import { upsertChecklistArchivo } from './documentHelpers';
 
 const STORAGE_KEY = 'prosejurix_mock_usuarios_tramites';
-const SEED_VERSION = '2026-07-22-tramites-v4-comms';
+const SEED_VERSION = '2026-07-22-tramites-v6-caducidad';
 const VERSION_KEY = 'prosejurix_mock_usuarios_seed_version';
 
 interface StoreShape {
@@ -21,6 +22,15 @@ interface StoreShape {
   tramites: Tramite[];
   comunicaciones: Comunicacion[];
 }
+
+const normalizeStore = (parsed: Partial<StoreShape>): StoreShape | null => {
+  if (!parsed?.usuarios?.length || !parsed?.tramites) return null;
+  return {
+    usuarios: parsed.usuarios,
+    tramites: parsed.tramites,
+    comunicaciones: Array.isArray(parsed.comunicaciones) ? parsed.comunicaciones : []
+  };
+};
 
 const readStore = (): StoreShape => {
   if (typeof window === 'undefined') {
@@ -32,17 +42,25 @@ const readStore = (): StoreShape => {
     if (savedVersion !== SEED_VERSION) {
       window.localStorage.removeItem(STORAGE_KEY);
       window.localStorage.setItem(VERSION_KEY, SEED_VERSION);
+      const seed = buildSeedFromMocks();
+      writeStore(seed);
+      return seed;
     }
 
     const saved = window.localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      const parsed = JSON.parse(saved) as StoreShape;
-      if (parsed?.usuarios?.length && parsed?.tramites) {
-        return {
-          usuarios: parsed.usuarios,
-          tramites: parsed.tramites,
-          comunicaciones: parsed.comunicaciones || []
-        };
+      const normalized = normalizeStore(JSON.parse(saved) as Partial<StoreShape>);
+      if (normalized) {
+        // Si el store quedó sin comunicaciones, reinyectar ejemplos del seed
+        if (normalized.comunicaciones.length === 0) {
+          const seed = buildSeedFromMocks();
+          const userIds = new Set(normalized.usuarios.map((u) => u.id));
+          const comunicaciones = seed.comunicaciones.filter((c) => userIds.has(c.usuarioId));
+          const repaired = { ...normalized, comunicaciones };
+          writeStore(repaired);
+          return repaired;
+        }
+        return normalized;
       }
     }
   } catch {
@@ -87,6 +105,18 @@ const attachTramites = (usuario: Usuario, tramites: Tramite[]): UsuarioConTramit
 
 const sortCommsDesc = (items: Comunicacion[]) =>
   [...items].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+
+const withCaducidad = <T extends Partial<Tramite>>(tramite: T): T => {
+  const fechaAccidente =
+    'fechaAccidente' in tramite ? tramite.fechaAccidente : undefined;
+  const responsabilidad =
+    'responsabilidad' in tramite ? tramite.responsabilidad : undefined;
+  const computed = computeCaducidadFromAccidente(fechaAccidente, responsabilidad);
+  return {
+    ...tramite,
+    caducidad: computed || tramite.caducidad
+  };
+};
 
 export const mockUserStore = {
   getAll(): UsuarioConTramites[] {
@@ -168,6 +198,7 @@ export const mockUserStore = {
     data: Omit<Usuario, 'id'> & {
       tituloTramite?: string;
       fechaAccidente?: string;
+      fechaEstructuracion?: string;
       lugarAccidente?: string;
       aseguradora?: string;
       responsabilidad?: string;
@@ -191,22 +222,23 @@ export const mockUserStore = {
       tieneVehiculoInvolucrado: data.tieneVehiculoInvolucrado ?? false
     };
 
-    const tramite: Tramite = {
+    const tramite = withCaducidad({
       id: nextTramiteId(store.tramites),
       usuarioId: id,
       titulo: data.tituloTramite || 'Nuevo trámite',
       casoLabel: data.aseguradora || data.fechaAccidente,
-      estadoGeneral: 'activo',
-      etapaActual: 'accion_penal',
+      estadoGeneral: 'activo' as const,
+      etapaActual: 'accion_penal' as const,
       esCasoAdicional: false,
       fechaAccidente: data.fechaAccidente,
+      fechaEstructuracion: data.fechaEstructuracion,
       lugarAccidente: data.lugarAccidente,
       aseguradora: data.aseguradora,
-      responsabilidad: data.responsabilidad,
+      responsabilidad: data.responsabilidad || 'Extracontractual',
       fechaIngreso: usuario.fechaVinculacion,
       etapas: createInitialEtapas(usuario.tieneVehiculoInvolucrado),
       observacionesCliente: 'Tu caso ha sido vinculado. Pronto tendrás novedades.'
-    };
+    });
 
     writeStore({
       usuarios: [...store.usuarios, usuario],
@@ -249,28 +281,39 @@ export const mockUserStore = {
 
   createCasoAdicional(
     usuarioId: number,
-    data: Partial<Pick<Tramite, 'titulo' | 'fechaAccidente' | 'aseguradora' | 'lugarAccidente' | 'responsabilidad'>>
+    data: Partial<
+      Pick<
+        Tramite,
+        | 'titulo'
+        | 'fechaAccidente'
+        | 'fechaEstructuracion'
+        | 'aseguradora'
+        | 'lugarAccidente'
+        | 'responsabilidad'
+      >
+    >
   ): Tramite {
     const store = readStore();
     const usuario = store.usuarios.find((u) => u.id === usuarioId);
     if (!usuario) throw new Error(`Usuario ${usuarioId} no encontrado`);
 
-    const tramite: Tramite = {
+    const tramite = withCaducidad({
       id: nextTramiteId(store.tramites),
       usuarioId,
       titulo: data.titulo || 'Caso adicional',
       casoLabel: data.aseguradora || data.fechaAccidente,
-      estadoGeneral: 'activo',
-      etapaActual: 'accion_penal',
+      estadoGeneral: 'activo' as const,
+      etapaActual: 'accion_penal' as const,
       esCasoAdicional: true,
       fechaAccidente: data.fechaAccidente,
+      fechaEstructuracion: data.fechaEstructuracion,
       lugarAccidente: data.lugarAccidente,
       aseguradora: data.aseguradora,
-      responsabilidad: data.responsabilidad,
+      responsabilidad: data.responsabilidad || 'Extracontractual',
       fechaIngreso: new Date().toISOString().split('T')[0],
       etapas: createInitialEtapas(usuario.tieneVehiculoInvolucrado),
       observacionesCliente: 'Se ha abierto un caso adicional en tu cuenta.'
-    };
+    });
 
     writeStore({
       usuarios: store.usuarios,
@@ -285,7 +328,8 @@ export const mockUserStore = {
     const index = store.tramites.findIndex((t) => t.id === id);
     if (index === -1) throw new Error(`Trámite ${id} no encontrado`);
 
-    const updated = { ...store.tramites[index], ...updates, id };
+    const merged = { ...store.tramites[index], ...updates, id };
+    const updated = withCaducidad(merged);
     const tramites = [...store.tramites];
     tramites[index] = updated;
     writeStore({ ...store, tramites });
