@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { MockProceso } from '../data/mocks';
 import { supabase } from '../lib/supabase';
 import { detectTableAndIdType, TableInfo } from '../lib/supabaseInspector';
+import { isMockDataForced, mockStore } from '../lib/mockStore';
 
 // Función helper para obtener un valor de un objeto usando múltiples posibles nombres de claves
 const getValue = (obj: any, ...keys: string[]): any => {
@@ -180,13 +181,23 @@ export const transformSupabaseToMock = (data: any): MockProceso => {
   };
 };
 
-// Hook para gestionar procesos con Supabase
+// Hook para gestionar procesos con Supabase (fallback a datos mock locales)
 export const useProcesses = () => {
   const [procesos, setProcesos] = useState<MockProceso[]>([]);
-  const [procesosRaw, setProcesosRaw] = useState<any[]>([]); // Datos crudos de Supabase
+  const [procesosRaw, setProcesosRaw] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usingMockData, setUsingMockData] = useState(false);
   const [tableInfo, setTableInfo] = useState<TableInfo | null>(null);
+
+  const loadFromMockStore = useCallback(() => {
+    const { procesos: mockProcesosData, raw } = mockStore.getAll();
+    setProcesos(mockProcesosData);
+    setProcesosRaw(raw);
+    setUsingMockData(true);
+    setError(null);
+    console.info(`📦 Modo mock activo: ${mockProcesosData.length} procesos cargados localmente`);
+  }, []);
 
   // Detectar tabla y tipo de ID una sola vez
   const detectTableInfo = async (): Promise<TableInfo> => {
@@ -245,22 +256,18 @@ export const useProcesses = () => {
     });
   };
 
-  // Cargar procesos desde Supabase
+  // Cargar procesos desde Supabase o mock local
   useEffect(() => {
     const loadProcesses = async () => {
       try {
-        console.log('🔄 Iniciando carga de procesos desde Supabase...');
+        console.log('🔄 Iniciando carga de procesos...');
         setIsLoaded(false);
         setError(null);
+        setUsingMockData(false);
 
-        // Verificar si el cliente de Supabase está inicializado
-        if (!supabase) {
-          const envUrl = import.meta.env.VITE_SUPABASE_URL;
-          const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-          console.error('❌ Cliente de Supabase no inicializado');
-          console.error('VITE_SUPABASE_URL:', envUrl ? '✅ Configurado' : '❌ No configurado');
-          console.error('VITE_SUPABASE_ANON_KEY:', envKey ? '✅ Configurado' : '❌ No configurado');
-          throw new Error('Cliente de Supabase no inicializado. Por favor, crea un archivo .env en la raíz del proyecto con VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY. Consulta SETUP_SUPABASE.md para más información.');
+        if (isMockDataForced() || !supabase) {
+          loadFromMockStore();
+          return;
         }
 
         console.log('✓ Cliente de Supabase inicializado correctamente');
@@ -337,23 +344,22 @@ export const useProcesses = () => {
           setError('La tabla de procesos está vacía. Crea tu primer proceso para comenzar.');
         }
       } catch (err) {
-        console.error('❌ Error al cargar procesos desde Supabase:', err);
-        const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
-        setError(errorMessage);
-        // En caso de error, no usar mocks - mostrar error real
-        setProcesos([]);
+        console.warn('⚠️ Supabase no disponible, usando datos mock locales:', err);
+        loadFromMockStore();
       } finally {
         setIsLoaded(true);
       }
     };
 
     loadProcesses();
-  }, []);
+  }, [loadFromMockStore]);
 
   const createProcess = async (processData: Omit<MockProceso, 'id'>) => {
     try {
-      if (!supabase) {
-        throw new Error('Cliente de Supabase no inicializado. Verifica tu archivo .env');
+      if (usingMockData || isMockDataForced() || !supabase) {
+        const created = mockStore.create(processData);
+        loadFromMockStore();
+        return created;
       }
 
       const info = await detectTableInfo();
@@ -479,6 +485,12 @@ export const useProcesses = () => {
 
   const updateProcess = async (id: string, updates: Partial<MockProceso>) => {
     try {
+      if (usingMockData || isMockDataForced() || !supabase) {
+        mockStore.update(id, updates);
+        loadFromMockStore();
+        return;
+      }
+
       const info = await detectTableInfo();
       const sampleRecord = info.sampleRecord || {};
 
@@ -572,8 +584,10 @@ export const useProcesses = () => {
 
   const deleteProcess = async (id: string) => {
     try {
-      if (!supabase) {
-        throw new Error('Cliente de Supabase no inicializado. Verifica tu archivo .env');
+      if (usingMockData || isMockDataForced() || !supabase) {
+        mockStore.delete(id);
+        loadFromMockStore();
+        return;
       }
 
       const info = await detectTableInfo();
@@ -613,8 +627,8 @@ export const useProcesses = () => {
   };
 
   const refreshProcesses = async () => {
-    if (!supabase) {
-      throw new Error('Cliente de Supabase no inicializado. Verifica tu archivo .env');
+    if (usingMockData || isMockDataForced() || !supabase) {
+      loadFromMockStore();
       return;
     }
 
@@ -642,9 +656,10 @@ export const useProcesses = () => {
 
   return {
     procesos,
-    procesosRaw, // Datos crudos de Supabase
+    procesosRaw,
     isLoaded,
     error,
+    usingMockData,
     createProcess,
     updateProcess,
     deleteProcess,
