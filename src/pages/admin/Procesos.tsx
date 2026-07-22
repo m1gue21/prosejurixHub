@@ -129,7 +129,7 @@ const Procesos = () => {
   const { confirm } = useConfirm();
 
   // Usar hook personalizado para gestionar procesos
-  const { procesos, procesosRaw, createProcess, updateProcess, deleteProcess, isLoaded, error } = useProcesses();
+  const { procesos, procesosRaw, createProcess, updateProcess, deleteProcess, isLoaded, error, usingMockData } = useProcesses();
   const clientes = mockClientes;
 
   // Helper para leer valores desde tabla cruda o mock
@@ -494,7 +494,17 @@ const Procesos = () => {
         <div className="mt-12 sm:mt-16">
           <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-900/10">
-        {error && (
+        {usingMockData && (
+          <div className="bg-amber-50 border-l-4 border-amber-400 p-4 mb-6 rounded">
+            <p className="text-sm text-amber-800">
+              <strong>Modo demo local:</strong> Supabase no está disponible. Estás trabajando con {procesos.length} procesos de prueba guardados en el navegador.
+            </p>
+            <p className="mt-1 text-xs text-amber-700">
+              Portal cliente: prueba con IDs <strong>1</strong>, <strong>2</strong>, <strong>4</strong> o <strong>5</strong>. Admin: <strong>admin / prosejurix2024</strong>.
+            </p>
+          </div>
+        )}
+        {error && !usingMockData && (
           <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6 rounded">
             <div className="flex">
               <div className="flex-shrink-0">

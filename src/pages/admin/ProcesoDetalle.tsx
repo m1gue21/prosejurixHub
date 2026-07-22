@@ -9,6 +9,7 @@ import { useProcesses } from '../../hooks/useProcesses';
 import { useNotifications } from '../../components/common/NotificationProvider';
 import { ControlProcesoAntecedente } from '../../types/supabase';
 import { supabase } from '../../lib/supabase';
+import { isMockDataForced, mockStore } from '../../lib/mockStore';
 import { detectTableAndIdType } from '../../lib/supabaseInspector';
 
 const ProcesoDetalle = () => {
@@ -49,32 +50,40 @@ const ProcesoDetalle = () => {
   };
 
   const fetchProcessById = async (targetId: string): Promise<ControlProcesoAntecedente | null> => {
-    if (!supabase) {
-      throw new Error('Supabase no está inicializado.');
+    if (isMockDataForced() || !supabase) {
+      return (mockStore.getRawById(targetId) as ControlProcesoAntecedente | undefined) ?? null;
     }
 
-    const tableInfo = await detectTableAndIdType();
-    let searchValue: string | number = targetId;
+    try {
+      const tableInfo = await detectTableAndIdType();
+      let searchValue: string | number = targetId;
 
-    if (tableInfo.idType === 'number') {
-      const numericId = Number(targetId);
-      if (Number.isNaN(numericId)) {
-        throw new Error(`El ID "${targetId}" no es válido. Se esperaba un número.`);
+      if (tableInfo.idType === 'number') {
+        const numericId = Number(targetId);
+        if (Number.isNaN(numericId)) {
+          throw new Error(`El ID "${targetId}" no es válido. Se esperaba un número.`);
+        }
+        searchValue = numericId;
       }
-      searchValue = numericId;
+
+      const { data, error } = await supabase
+        .from(tableInfo.tableName)
+        .select('*')
+        .eq(tableInfo.idColumnName, searchValue)
+        .maybeSingle();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data) {
+        return data;
+      }
+    } catch (err) {
+      console.warn('⚠️ Supabase no disponible en detalle admin, usando mock:', err);
     }
 
-    const { data, error } = await supabase
-      .from(tableInfo.tableName)
-      .select('*')
-      .eq(tableInfo.idColumnName, searchValue)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return data ?? null;
+    return (mockStore.getRawById(targetId) as ControlProcesoAntecedente | undefined) ?? null;
   };
 
   // Cargar proceso completo desde Supabase por ID

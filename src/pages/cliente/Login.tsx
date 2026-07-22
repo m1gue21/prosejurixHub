@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Sparkles, ShieldCheck } from 'lucide-react';
 import ClientLoginForm from '../../components/cliente/ClientLoginForm';
 import { supabase } from '../../lib/supabase';
+import { isMockDataForced, mockStore } from '../../lib/mockStore';
 import { useNotifications } from '../../components/common/NotificationProvider';
 
 const ClienteLogin = () => {
@@ -10,17 +11,6 @@ const ClienteLogin = () => {
 
   const handleLogin = async (clienteIdInput: string) => {
     try {
-      // Validar que supabase esté inicializado
-      if (!supabase) {
-        console.error('❌ Supabase no está inicializado');
-        notify({
-          type: 'error',
-          title: 'Error de conexión',
-          message: 'No pudimos conectar con la base de datos. Verifica la configuración e inténtalo más tarde.'
-        });
-        return;
-      }
-      // Validar y normalizar ID del cliente (cliente_id en la tabla CTRANTECEDENTES)
       const clienteId = Number(String(clienteIdInput).trim());
 
       if (!clienteId || Number.isNaN(clienteId)) {
@@ -32,7 +22,28 @@ const ClienteLogin = () => {
         return;
       }
 
-      // Intentar con el nombre de tabla indicado
+      if (isMockDataForced() || !supabase) {
+        const procesosMock = mockStore.getByClienteId(clienteId);
+        if (procesosMock.length === 0) {
+          notify({
+            type: 'warning',
+            title: 'Sin resultados',
+            message: `No encontramos procesos para el cliente con ID ${clienteId}. Prueba con 1, 2, 4 o 5.`
+          });
+          return;
+        }
+
+        const primerProceso = procesosMock[0];
+        navigate('/portal/proceso', {
+          state: {
+            clienteId,
+            cedula: primerProceso.CEDULA_NIT || primerProceso.CEDULA || '',
+            procesos: procesosMock
+          }
+        });
+        return;
+      }
+
       const tableName = 'CTRANTECEDENTES';
       
       // Primero, obtener un registro para ver la estructura real de la tabla
@@ -43,26 +54,24 @@ const ClienteLogin = () => {
         .limit(1);
       
       if (sampleError) {
-        console.error('❌ Error al acceder a la tabla:', sampleError);
-        if (sampleError.message?.includes('relation') || sampleError.message?.includes('does not exist')) {
+        console.warn('⚠️ Supabase no disponible en portal, usando datos mock:', sampleError.message);
+        const procesosMock = mockStore.getByClienteId(clienteId);
+        if (procesosMock.length === 0) {
           notify({
-            type: 'error',
-            title: 'Tabla no encontrada',
-            message: 'No encontramos la tabla CTRANTECEDENTES. Verifica el nombre en Supabase.'
+            type: 'warning',
+            title: 'Sin resultados',
+            message: `No encontramos procesos para el cliente con ID ${clienteId}. Prueba con 1, 2, 4 o 5.`
           });
-        } else if (sampleError.message?.includes('permission') || sampleError.code === 'PGRST301') {
-          notify({
-            type: 'error',
-            title: 'Sin permisos',
-            message: 'No tienes permisos para consultar la tabla. Contacta al administrador.'
-          });
-        } else {
-          notify({
-            type: 'error',
-            title: 'Error de Supabase',
-            message: `No se pudo consultar la tabla: ${sampleError.message || 'Error desconocido'}.`
-          });
+          return;
         }
+        const primerProceso = procesosMock[0];
+        navigate('/portal/proceso', {
+          state: {
+            clienteId,
+            cedula: primerProceso.CEDULA_NIT || primerProceso.CEDULA || '',
+            procesos: procesosMock
+          }
+        });
         return;
       }
 

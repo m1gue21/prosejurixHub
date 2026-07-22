@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Calendar, User, Building2, FileText, Tag, DollarSign, AlertCircle, Phone, Mail } from 'lucide-react';
 import Button from '../../components/common/Button';
 import { supabase } from '../../lib/supabase';
+import { isMockDataForced, mockStore } from '../../lib/mockStore';
 import { detectTableAndIdType } from '../../lib/supabaseInspector';
 
 const ProcesoDetalleCliente = () => {
@@ -56,29 +57,37 @@ const ProcesoDetalleCliente = () => {
         let procesoData = null;
 
         // Buscar en Supabase para obtener los datos más actualizados
-        if (supabase) {
-          const tableInfo = await detectTableAndIdType();
-          let searchValue: string | number = decodedId;
-          if (tableInfo.idType === 'number') {
-            const numericId = Number(decodedId);
-            if (Number.isNaN(numericId)) {
-              throw new Error(`El ID "${decodedId}" no es válido. Se esperaba un número.`);
+        if (supabase && !isMockDataForced()) {
+          try {
+            const tableInfo = await detectTableAndIdType();
+            let searchValue: string | number = decodedId;
+            if (tableInfo.idType === 'number') {
+              const numericId = Number(decodedId);
+              if (Number.isNaN(numericId)) {
+                throw new Error(`El ID "${decodedId}" no es válido. Se esperaba un número.`);
+              }
+              searchValue = numericId;
             }
-            searchValue = numericId;
+
+            console.log(`📡 Buscando en Supabase por ${tableInfo.idColumnName}:`, searchValue);
+
+            const { data: foundById, error: errorById } = await supabase
+              .from(tableInfo.tableName)
+              .select('*')
+              .eq(tableInfo.idColumnName, searchValue)
+              .maybeSingle();
+
+            if (foundById && !errorById) {
+              console.log('✅ Proceso encontrado por ID:', foundById);
+              procesoData = foundById;
+            }
+          } catch (supabaseErr) {
+            console.warn('⚠️ Supabase no disponible en detalle cliente, usando mock:', supabaseErr);
           }
+        }
 
-          console.log(`📡 Buscando en Supabase por ${tableInfo.idColumnName}:`, searchValue);
-
-          const { data: foundById, error: errorById } = await supabase
-            .from(tableInfo.tableName)
-            .select('*')
-            .eq(tableInfo.idColumnName, searchValue)
-            .maybeSingle();
-
-          if (foundById && !errorById) {
-            console.log('✅ Proceso encontrado por ID:', foundById);
-            procesoData = foundById;
-          }
+        if (!procesoData) {
+          procesoData = mockStore.getRawById(decodedId) ?? null;
         }
 
         // Si no se encontró en Supabase, intentar con el estado de navegación como fallback
