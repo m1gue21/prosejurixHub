@@ -2,6 +2,7 @@ import { buildSeedFromMocks } from '../data/seedUsuariosTramites';
 import { createInitialEtapas, getEtapaLabel } from '../data/tramitesCatalog';
 import {
   ChecklistItem,
+  Comunicacion,
   DocumentoArchivo,
   EtapaTramite,
   TipoEtapa,
@@ -12,12 +13,13 @@ import {
 import { upsertChecklistArchivo } from './documentHelpers';
 
 const STORAGE_KEY = 'prosejurix_mock_usuarios_tramites';
-const SEED_VERSION = '2026-07-22-tramites-v3-docs';
+const SEED_VERSION = '2026-07-22-tramites-v4-comms';
 const VERSION_KEY = 'prosejurix_mock_usuarios_seed_version';
 
 interface StoreShape {
   usuarios: Usuario[];
   tramites: Tramite[];
+  comunicaciones: Comunicacion[];
 }
 
 const readStore = (): StoreShape => {
@@ -36,7 +38,11 @@ const readStore = (): StoreShape => {
     if (saved) {
       const parsed = JSON.parse(saved) as StoreShape;
       if (parsed?.usuarios?.length && parsed?.tramites) {
-        return parsed;
+        return {
+          usuarios: parsed.usuarios,
+          tramites: parsed.tramites,
+          comunicaciones: parsed.comunicaciones || []
+        };
       }
     }
   } catch {
@@ -64,12 +70,23 @@ const nextTramiteId = (tramites: Tramite[]): string => {
   return `t-${max + 1}`;
 };
 
+const nextComunicacionId = (comunicaciones: Comunicacion[]): string => {
+  const max = comunicaciones.reduce((acc, c) => {
+    const n = Number(String(c.id).replace(/\D/g, ''));
+    return Number.isNaN(n) ? acc : Math.max(acc, n);
+  }, 0);
+  return `c-${max + 1}`;
+};
+
 const attachTramites = (usuario: Usuario, tramites: Tramite[]): UsuarioConTramites => ({
   ...usuario,
   tramites: tramites
     .filter((t) => t.usuarioId === usuario.id)
     .sort((a, b) => Number(a.esCasoAdicional) - Number(b.esCasoAdicional))
 });
+
+const sortCommsDesc = (items: Comunicacion[]) =>
+  [...items].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 
 export const mockUserStore = {
   getAll(): UsuarioConTramites[] {
@@ -92,6 +109,59 @@ export const mockUserStore = {
   getTramitePrincipal(usuarioId: number): Tramite | undefined {
     const tramites = readStore().tramites.filter((t) => t.usuarioId === usuarioId);
     return tramites.find((t) => !t.esCasoAdicional) || tramites[0];
+  },
+
+  getComunicaciones(usuarioId: number, tramiteId?: string): Comunicacion[] {
+    const { comunicaciones } = readStore();
+    return sortCommsDesc(
+      comunicaciones.filter((c) => {
+        if (c.usuarioId !== usuarioId) return false;
+        if (tramiteId && c.tramiteId && c.tramiteId !== tramiteId) return false;
+        return true;
+      })
+    );
+  },
+
+  createComunicacion(
+    data: Omit<Comunicacion, 'id'> & { id?: string }
+  ): Comunicacion {
+    const store = readStore();
+    const created: Comunicacion = {
+      id: data.id || nextComunicacionId(store.comunicaciones),
+      usuarioId: data.usuarioId,
+      tramiteId: data.tramiteId,
+      tipo: data.tipo,
+      direccion: data.direccion,
+      fecha: data.fecha || new Date().toISOString(),
+      asunto: data.asunto,
+      contenido: data.contenido,
+      registradoPor: data.registradoPor,
+      duracionMinutos: data.duracionMinutos
+    };
+    writeStore({
+      ...store,
+      comunicaciones: [...store.comunicaciones, created]
+    });
+    return created;
+  },
+
+  updateComunicacion(id: string, updates: Partial<Comunicacion>): Comunicacion {
+    const store = readStore();
+    const index = store.comunicaciones.findIndex((c) => c.id === id);
+    if (index === -1) throw new Error(`Comunicación ${id} no encontrada`);
+    const updated = { ...store.comunicaciones[index], ...updates, id };
+    const comunicaciones = [...store.comunicaciones];
+    comunicaciones[index] = updated;
+    writeStore({ ...store, comunicaciones });
+    return updated;
+  },
+
+  deleteComunicacion(id: string): void {
+    const store = readStore();
+    writeStore({
+      ...store,
+      comunicaciones: store.comunicaciones.filter((c) => c.id !== id)
+    });
   },
 
   createUsuario(
@@ -140,7 +210,8 @@ export const mockUserStore = {
 
     writeStore({
       usuarios: [...store.usuarios, usuario],
-      tramites: [...store.tramites, tramite]
+      tramites: [...store.tramites, tramite],
+      comunicaciones: store.comunicaciones
     });
 
     return attachTramites(usuario, [tramite]);
@@ -155,7 +226,6 @@ export const mockUserStore = {
     const usuarios = [...store.usuarios];
     usuarios[index] = updated;
 
-    // Si cambia el flag de vehículo, ajustar etapa liberación
     let tramites = store.tramites;
     if (typeof updates.tieneVehiculoInvolucrado === 'boolean') {
       tramites = tramites.map((t) => {
@@ -173,7 +243,7 @@ export const mockUserStore = {
       });
     }
 
-    writeStore({ usuarios, tramites });
+    writeStore({ usuarios, tramites, comunicaciones: store.comunicaciones });
     return attachTramites(updated, tramites);
   },
 
@@ -204,7 +274,8 @@ export const mockUserStore = {
 
     writeStore({
       usuarios: store.usuarios,
-      tramites: [...store.tramites, tramite]
+      tramites: [...store.tramites, tramite],
+      comunicaciones: store.comunicaciones
     });
     return tramite;
   },
@@ -217,7 +288,7 @@ export const mockUserStore = {
     const updated = { ...store.tramites[index], ...updates, id };
     const tramites = [...store.tramites];
     tramites[index] = updated;
-    writeStore({ usuarios: store.usuarios, tramites });
+    writeStore({ ...store, tramites });
     return updated;
   },
 
@@ -244,7 +315,7 @@ export const mockUserStore = {
     const updated: Tramite = { ...tramite, etapas, etapaActual };
     const tramites = [...store.tramites];
     tramites[index] = updated;
-    writeStore({ usuarios: store.usuarios, tramites });
+    writeStore({ ...store, tramites });
     return updated;
   },
 
@@ -270,7 +341,7 @@ export const mockUserStore = {
     const updated: Tramite = { ...tramite, etapas, etapaActual: etapaTipo };
     const tramites = [...store.tramites];
     tramites[index] = updated;
-    writeStore({ usuarios: store.usuarios, tramites });
+    writeStore({ ...store, tramites });
     return updated;
   },
 
@@ -294,7 +365,7 @@ export const mockUserStore = {
     const updated = { ...tramite, etapas };
     const tramites = [...store.tramites];
     tramites[index] = updated;
-    writeStore({ usuarios: store.usuarios, tramites });
+    writeStore({ ...store, tramites });
     return updated;
   },
 
@@ -313,7 +384,7 @@ export const mockUserStore = {
     const updated = { ...tramite, etapas };
     const tramites = [...store.tramites];
     tramites[index] = updated;
-    writeStore({ usuarios: store.usuarios, tramites });
+    writeStore({ ...store, tramites });
     return updated;
   },
 
@@ -321,7 +392,8 @@ export const mockUserStore = {
     const store = readStore();
     writeStore({
       usuarios: store.usuarios.filter((u) => u.id !== id),
-      tramites: store.tramites.filter((t) => t.usuarioId !== id)
+      tramites: store.tramites.filter((t) => t.usuarioId !== id),
+      comunicaciones: store.comunicaciones.filter((c) => c.usuarioId !== id)
     });
   },
 

@@ -41,7 +41,7 @@ const TramiteTimeline = ({ tramite, selectedTipo, onSelect }: TramiteTimelinePro
     .filter((e): e is EtapaTramite => Boolean(e));
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
       <div className="mb-5 sm:mb-6">
         <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Timeline</p>
         <h3 className="text-base font-semibold text-slate-900 sm:text-lg">

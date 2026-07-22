@@ -136,3 +136,31 @@ export interface Tramite {
 export interface UsuarioConTramites extends Usuario {
   tramites: Tramite[];
 }
+
+/** Canal de la comunicación con el cliente */
+export type TipoComunicacion =
+  | 'mensaje'
+  | 'llamada'
+  | 'correo'
+  | 'visita_oficina'
+  | 'visita_cliente';
+
+/** Quién inició el contacto */
+export type DireccionComunicacion = 'hacia_cliente' | 'desde_cliente';
+
+export interface Comunicacion {
+  id: string;
+  usuarioId: number;
+  /** Opcional: asociar al trámite concreto */
+  tramiteId?: string;
+  tipo: TipoComunicacion;
+  direccion: DireccionComunicacion;
+  /** Fecha/hora ISO */
+  fecha: string;
+  asunto?: string;
+  contenido: string;
+  /** Quién registró (equipo) */
+  registradoPor?: string;
+  /** Duración en minutos (llamadas / visitas) */
+  duracionMinutos?: number;
+}

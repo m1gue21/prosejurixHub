@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, FileText, GitBranch, Plus, Waypoints } from 'lucide-react';
+import { ArrowLeft, FileText, GitBranch, MessagesSquare, Plus, Waypoints } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import TramitePipeline from '../../components/admin/TramitePipeline';
 import TramiteTimeline from '../../components/admin/TramiteTimeline';
 import ArchivosTramite from '../../components/admin/ArchivosTramite';
+import ComunicacionesTimeline from '../../components/admin/ComunicacionesTimeline';
 import EtapaPanel from '../../components/admin/EtapaPanel';
 import { useUsuarios } from '../../hooks/useUsuarios';
 import { getEtapaLabel } from '../../data/tramitesCatalog';
-import { TipoEtapa, Tramite, UsuarioConTramites } from '../../types/tramite';
+import { Comunicacion, TipoEtapa, Tramite, UsuarioConTramites } from '../../types/tramite';
 import { useNotifications } from '../../components/common/NotificationProvider';
 
-type VistaTramite = 'pipeline' | 'timeline' | 'archivos';
+type VistaTramite = 'pipeline' | 'timeline' | 'archivos' | 'comunicaciones';
 
 const UsuarioDetalle = () => {
   const { id } = useParams();
@@ -26,11 +27,15 @@ const UsuarioDetalle = () => {
     createCasoAdicional,
     upsertDocumento,
     removeDocumento,
+    getComunicaciones,
+    createComunicacion,
+    deleteComunicacion,
     refresh
   } = useUsuarios();
   const { notify } = useNotifications();
 
   const [usuario, setUsuario] = useState<UsuarioConTramites | null>(null);
+  const [comunicaciones, setComunicaciones] = useState<Comunicacion[]>([]);
   const [tramiteId, setTramiteId] = useState<string | null>(null);
   const [selectedEtapa, setSelectedEtapa] = useState<TipoEtapa | undefined>();
   const [vista, setVista] = useState<VistaTramite>('timeline');
@@ -49,6 +54,7 @@ const UsuarioDetalle = () => {
       return;
     }
     setUsuario(data);
+    setComunicaciones(getComunicaciones(numericId));
     const principal = data.tramites.find((t) => !t.esCasoAdicional) || data.tramites[0];
     setTramiteId((prev) => prev || principal?.id || null);
     if (principal && !selectedEtapa) {
@@ -83,11 +89,13 @@ const UsuarioDetalle = () => {
     refresh();
     const data = getUsuario(usuario.id);
     if (data) setUsuario(data);
+    setComunicaciones(getComunicaciones(usuario.id));
   };
 
   const tabs: { id: VistaTramite; label: string; icon: typeof Waypoints }[] = [
     { id: 'timeline', label: 'Timeline', icon: Waypoints },
     { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
+    { id: 'comunicaciones', label: 'Comunicaciones', icon: MessagesSquare },
     { id: 'archivos', label: 'Archivos', icon: FileText }
   ];
 
@@ -337,9 +345,35 @@ const UsuarioDetalle = () => {
               }}
             />
           )}
+          {vista === 'comunicaciones' && (
+            <ComunicacionesTimeline
+              usuarioId={usuario.id}
+              comunicaciones={comunicaciones}
+              tramites={usuario.tramites}
+              tramiteActualId={tramite.id}
+              onCreate={(data) => {
+                createComunicacion(data);
+                reloadLocal();
+                notify({
+                  type: 'success',
+                  title: 'Comunicación registrada',
+                  message: data.asunto || data.tipo
+                });
+              }}
+              onDelete={(commId) => {
+                deleteComunicacion(commId);
+                reloadLocal();
+                notify({
+                  type: 'success',
+                  title: 'Eliminada',
+                  message: 'Comunicación quitada del historial'
+                });
+              }}
+            />
+          )}
         </section>
 
-        {vista !== 'archivos' && etapa && (
+        {vista !== 'archivos' && vista !== 'comunicaciones' && etapa && (
           <EtapaPanel
             etapa={etapa}
             isEtapaActual={tramite.etapaActual === etapa.tipo}

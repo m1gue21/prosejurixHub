@@ -2,6 +2,7 @@ import { mockClientes, mockProcesos, MockProceso } from './mocks';
 import { createInitialEtapas, getEtapaCatalog } from './tramitesCatalog';
 import { createDocumentoFromUrl } from '../lib/documentHelpers';
 import {
+  Comunicacion,
   EstadoGeneralTramite,
   EtapaTramite,
   TipoEtapa,
@@ -263,6 +264,7 @@ function mapProcesoToTramite(
 export interface SeedData {
   usuarios: Usuario[];
   tramites: Tramite[];
+  comunicaciones: Comunicacion[];
 }
 
 export const buildSeedFromMocks = (): SeedData => {
@@ -338,5 +340,77 @@ export const buildSeedFromMocks = (): SeedData => {
     tramites.push(mapProcesoToTramite(p, nextId, false));
   }
 
-  return { usuarios, tramites };
+  const comunicaciones: Comunicacion[] = [];
+  const sampleUsuarios = usuarios.slice(0, 8);
+
+  sampleUsuarios.forEach((u, i) => {
+    const tramite = tramites.find((t) => t.usuarioId === u.id && !t.esCasoAdicional);
+    const baseDate = u.fechaVinculacion || '2025-11-01';
+    const day = (offset: number) => {
+      const d = new Date(`${baseDate}T12:00:00`);
+      d.setDate(d.getDate() + offset);
+      return d.toISOString();
+    };
+
+    comunicaciones.push({
+      id: `c-seed-${u.id}-1`,
+      usuarioId: u.id,
+      tramiteId: tramite?.id,
+      tipo: 'llamada',
+      direccion: 'hacia_cliente',
+      fecha: day(1),
+      asunto: 'Bienvenida y próximos pasos',
+      contenido:
+        'Llamada de vinculación: se explicó el flujo del trámite y se confirmó documentación pendiente.',
+      registradoPor: 'Asesoría',
+      duracionMinutos: 12
+    });
+
+    comunicaciones.push({
+      id: `c-seed-${u.id}-2`,
+      usuarioId: u.id,
+      tramiteId: tramite?.id,
+      tipo: i % 2 === 0 ? 'mensaje' : 'correo',
+      direccion: 'desde_cliente',
+      fecha: day(4),
+      asunto: i % 2 === 0 ? 'Consulta por WhatsApp' : 'Solicitud de actualización',
+      contenido:
+        i % 2 === 0
+          ? 'Cliente preguntó por el estado de la reclamación y envió fotos adicionales.'
+          : 'Cliente escribió solicitando copia del poder y fecha estimada de respuesta de la aseguradora.',
+      registradoPor: 'Mesa de entrada'
+    });
+
+    if (i % 3 === 0) {
+      comunicaciones.push({
+        id: `c-seed-${u.id}-3`,
+        usuarioId: u.id,
+        tramiteId: tramite?.id,
+        tipo: 'visita_oficina',
+        direccion: 'desde_cliente',
+        fecha: day(10),
+        asunto: 'Entrega de documentos',
+        contenido: 'Cliente asistió a la oficina a entregar historia clínica y poder firmado.',
+        registradoPor: 'Recepción',
+        duracionMinutos: 25
+      });
+    }
+
+    if (i % 4 === 0) {
+      comunicaciones.push({
+        id: `c-seed-${u.id}-4`,
+        usuarioId: u.id,
+        tramiteId: tramite?.id,
+        tipo: 'visita_cliente',
+        direccion: 'hacia_cliente',
+        fecha: day(14),
+        asunto: 'Visita domiciliaria',
+        contenido: 'Visita al domicilio del cliente para firma de documentos y explicación del avance.',
+        registradoPor: 'Gestión de campo',
+        duracionMinutos: 40
+      });
+    }
+  });
+
+  return { usuarios, tramites, comunicaciones };
 };

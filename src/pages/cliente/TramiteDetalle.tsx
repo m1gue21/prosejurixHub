@@ -21,10 +21,7 @@ const TramiteDetalleCliente = () => {
 
   const tramite = useMemo(() => {
     if (!id) return undefined;
-    return (
-      tramites?.find((t) => t.id === id) ||
-      mockUserStore.getTramite(id)
-    );
+    return tramites?.find((t) => t.id === id) || mockUserStore.getTramite(id);
   }, [id, tramites]);
 
   useEffect(() => {
@@ -35,7 +32,7 @@ const TramiteDetalleCliente = () => {
 
   if (!usuarioId || !usuario || !tramite) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-slate-500">
+      <div className="flex min-h-screen items-center justify-center px-4 text-slate-500">
         Cargando trámite...
       </div>
     );
@@ -59,7 +56,9 @@ const TramiteDetalleCliente = () => {
                 state: {
                   usuarioId,
                   usuario,
-                  tramites: tramites || (usuario && mockUserStore.getUsuario(usuario.id)?.tramites)
+                  tramites:
+                    tramites ||
+                    (usuario && mockUserStore.getUsuario(usuario.id)?.tramites)
                 }
               })
             }
@@ -93,7 +92,9 @@ const TramiteDetalleCliente = () => {
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
-          <h3 className="mb-4 text-base font-semibold text-slate-900 sm:text-lg">Avance de tu caso</h3>
+          <h3 className="mb-4 text-base font-semibold text-slate-900 sm:text-lg">
+            Avance de tu caso
+          </h3>
           <ol className="space-y-3">
             {visibles.map((etapa) => {
               const done = etapa.estado === 'completada';
@@ -109,11 +110,15 @@ const TramiteDetalleCliente = () => {
                     <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
                   ) : (
                     <Circle
-                      className={`mt-0.5 h-5 w-5 shrink-0 ${current ? 'text-blue-600' : 'text-slate-300'}`}
+                      className={`mt-0.5 h-5 w-5 shrink-0 ${
+                        current ? 'text-blue-600' : 'text-slate-300'
+                      }`}
                     />
                   )}
                   <div className="min-w-0">
-                    <p className="font-medium text-slate-900">{getEtapaLabel(etapa.tipo, true)}</p>
+                    <p className="font-medium text-slate-900">
+                      {getEtapaLabel(etapa.tipo, true)}
+                    </p>
                     <p className="text-xs capitalize text-slate-500">
                       {etapa.estado.replace('_', ' ')}
                       {etapa.subestado ? ` · ${etapa.subestado.replace(/_/g, ' ')}` : ''}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { mockUserStore } from '../lib/mockUserStore';
 import {
   ChecklistItem,
+  Comunicacion,
   DocumentoArchivo,
   EtapaTramite,
   TipoEtapa,
@@ -96,6 +97,26 @@ export const useUsuarios = () => {
     return updated;
   };
 
+  const getComunicaciones = (usuarioId: number, tramiteId?: string) =>
+    mockUserStore.getComunicaciones(usuarioId, tramiteId);
+
+  const createComunicacion = (data: Omit<Comunicacion, 'id'> & { id?: string }) => {
+    const created = mockUserStore.createComunicacion(data);
+    refresh();
+    return created;
+  };
+
+  const updateComunicacion = (id: string, updates: Partial<Comunicacion>) => {
+    const updated = mockUserStore.updateComunicacion(id, updates);
+    refresh();
+    return updated;
+  };
+
+  const deleteComunicacion = (id: string) => {
+    mockUserStore.deleteComunicacion(id);
+    refresh();
+  };
+
   return {
     usuarios,
     isLoaded,
@@ -110,6 +131,10 @@ export const useUsuarios = () => {
     setEtapaActual,
     createCasoAdicional,
     upsertDocumento,
-    removeDocumento
+    removeDocumento,
+    getComunicaciones,
+    createComunicacion,
+    updateComunicacion,
+    deleteComunicacion
   };
 };
