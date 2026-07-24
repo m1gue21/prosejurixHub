@@ -48,7 +48,13 @@ export const aniosPorTipo = (tipo: TipoResponsabilidad | null): number | null =>
 export const addYearsIso = (isoDate: string, years: number): string | null => {
   const d = parseLocalDate(isoDate);
   if (!d) return null;
+  const day = d.getDate();
   d.setFullYear(d.getFullYear() + years);
+  // Si partimos de 29/02 y el destino no es bisiesto, JS puede pasar a 01/03;
+  // preferimos el último día de febrero.
+  if (day === 29 && d.getMonth() === 2 && d.getDate() === 1) {
+    d.setDate(0); // último día de febrero
+  }
   return toIsoDate(d);
 };
 

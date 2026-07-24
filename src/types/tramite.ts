@@ -132,11 +132,17 @@ export interface Tramite {
   valorPeritaje?: number;
   valorPrestamos?: number;
   gastosAdicionales?: number;
+  /** Alcance del proceso (columna Sheets ACTIVOS) */
+  alcance?: string;
+  /** Gestión / nota operativa */
+  gestion?: string;
   observaciones?: string;
   observacionesInternas?: string;
   observacionesCliente?: string;
   fechaIngreso: string;
   etapas: EtapaTramite[];
+  /** Clave idempotente de importación CSV */
+  origenKey?: string;
 }
 
 export type TipoResponsabilidad = 'contractual' | 'extracontractual';

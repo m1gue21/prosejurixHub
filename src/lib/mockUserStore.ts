@@ -1,6 +1,7 @@
 import { buildSeedFromMocks } from '../data/seedUsuariosTramites';
 import { createInitialEtapas, getEtapaLabel } from '../data/tramitesCatalog';
 import { computeCaducidadFromAccidente } from './caducidad';
+import { AgendaNota } from '../types/agenda';
 import {
   ChecklistItem,
   Comunicacion,
@@ -14,13 +15,14 @@ import {
 import { upsertChecklistArchivo } from './documentHelpers';
 
 const STORAGE_KEY = 'prosejurix_mock_usuarios_tramites';
-const SEED_VERSION = '2026-07-22-tramites-v6-caducidad';
+const SEED_VERSION = '2026-07-22-tramites-v8-manizales-csv';
 const VERSION_KEY = 'prosejurix_mock_usuarios_seed_version';
 
 interface StoreShape {
   usuarios: Usuario[];
   tramites: Tramite[];
   comunicaciones: Comunicacion[];
+  notasAgenda: AgendaNota[];
 }
 
 const normalizeStore = (parsed: Partial<StoreShape>): StoreShape | null => {
@@ -28,7 +30,8 @@ const normalizeStore = (parsed: Partial<StoreShape>): StoreShape | null => {
   return {
     usuarios: parsed.usuarios,
     tramites: parsed.tramites,
-    comunicaciones: Array.isArray(parsed.comunicaciones) ? parsed.comunicaciones : []
+    comunicaciones: Array.isArray(parsed.comunicaciones) ? parsed.comunicaciones : [],
+    notasAgenda: Array.isArray(parsed.notasAgenda) ? parsed.notasAgenda : []
   };
 };
 
@@ -51,16 +54,24 @@ const readStore = (): StoreShape => {
     if (saved) {
       const normalized = normalizeStore(JSON.parse(saved) as Partial<StoreShape>);
       if (normalized) {
-        // Si el store quedó sin comunicaciones, reinyectar ejemplos del seed
-        if (normalized.comunicaciones.length === 0) {
+        let repaired = normalized;
+        if (normalized.comunicaciones.length === 0 || normalized.notasAgenda.length === 0) {
           const seed = buildSeedFromMocks();
           const userIds = new Set(normalized.usuarios.map((u) => u.id));
-          const comunicaciones = seed.comunicaciones.filter((c) => userIds.has(c.usuarioId));
-          const repaired = { ...normalized, comunicaciones };
+          repaired = {
+            ...normalized,
+            comunicaciones:
+              normalized.comunicaciones.length > 0
+                ? normalized.comunicaciones
+                : seed.comunicaciones.filter((c) => userIds.has(c.usuarioId)),
+            notasAgenda:
+              normalized.notasAgenda.length > 0
+                ? normalized.notasAgenda
+                : seed.notasAgenda.filter((n) => !n.usuarioId || userIds.has(n.usuarioId))
+          };
           writeStore(repaired);
-          return repaired;
         }
-        return normalized;
+        return repaired;
       }
     }
   } catch {
@@ -94,6 +105,14 @@ const nextComunicacionId = (comunicaciones: Comunicacion[]): string => {
     return Number.isNaN(n) ? acc : Math.max(acc, n);
   }, 0);
   return `c-${max + 1}`;
+};
+
+const nextNotaId = (notas: AgendaNota[]): string => {
+  const max = notas.reduce((acc, n) => {
+    const num = Number(String(n.id).replace(/\D/g, ''));
+    return Number.isNaN(num) ? acc : Math.max(acc, num);
+  }, 0);
+  return `n-${max + 1}`;
 };
 
 const attachTramites = (usuario: Usuario, tramites: Tramite[]): UsuarioConTramites => ({
@@ -194,6 +213,56 @@ export const mockUserStore = {
     });
   },
 
+  getSnapshot(): StoreShape {
+    return readStore();
+  },
+
+  getNotasAgenda(): AgendaNota[] {
+    return [...readStore().notasAgenda].sort((a, b) => a.fecha.localeCompare(b.fecha));
+  },
+
+  createNotaAgenda(
+    data: Omit<AgendaNota, 'id' | 'creadoEn' | 'hecho'> & { id?: string; hecho?: boolean; creadoEn?: string }
+  ): AgendaNota {
+    const store = readStore();
+    const created: AgendaNota = {
+      id: data.id || nextNotaId(store.notasAgenda),
+      tipo: data.tipo,
+      fecha: data.fecha,
+      titulo: data.titulo,
+      detalle: data.detalle,
+      usuarioId: data.usuarioId,
+      tramiteId: data.tramiteId,
+      hecho: data.hecho ?? false,
+      creadoPor: data.creadoPor,
+      creadoEn: data.creadoEn || new Date().toISOString()
+    };
+    writeStore({
+      ...store,
+      notasAgenda: [...store.notasAgenda, created]
+    });
+    return created;
+  },
+
+  updateNotaAgenda(id: string, updates: Partial<AgendaNota>): AgendaNota {
+    const store = readStore();
+    const index = store.notasAgenda.findIndex((n) => n.id === id);
+    if (index === -1) throw new Error(`Nota ${id} no encontrada`);
+    const updated = { ...store.notasAgenda[index], ...updates, id };
+    const notasAgenda = [...store.notasAgenda];
+    notasAgenda[index] = updated;
+    writeStore({ ...store, notasAgenda });
+    return updated;
+  },
+
+  deleteNotaAgenda(id: string): void {
+    const store = readStore();
+    writeStore({
+      ...store,
+      notasAgenda: store.notasAgenda.filter((n) => n.id !== id)
+    });
+  },
+
   createUsuario(
     data: Omit<Usuario, 'id'> & {
       tituloTramite?: string;
@@ -243,7 +312,8 @@ export const mockUserStore = {
     writeStore({
       usuarios: [...store.usuarios, usuario],
       tramites: [...store.tramites, tramite],
-      comunicaciones: store.comunicaciones
+      comunicaciones: store.comunicaciones,
+      notasAgenda: store.notasAgenda
     });
 
     return attachTramites(usuario, [tramite]);
@@ -275,7 +345,7 @@ export const mockUserStore = {
       });
     }
 
-    writeStore({ usuarios, tramites, comunicaciones: store.comunicaciones });
+    writeStore({ ...store, usuarios, tramites });
     return attachTramites(updated, tramites);
   },
 
@@ -316,9 +386,8 @@ export const mockUserStore = {
     });
 
     writeStore({
-      usuarios: store.usuarios,
-      tramites: [...store.tramites, tramite],
-      comunicaciones: store.comunicaciones
+      ...store,
+      tramites: [...store.tramites, tramite]
     });
     return tramite;
   },
@@ -437,7 +506,8 @@ export const mockUserStore = {
     writeStore({
       usuarios: store.usuarios.filter((u) => u.id !== id),
       tramites: store.tramites.filter((t) => t.usuarioId !== id),
-      comunicaciones: store.comunicaciones.filter((c) => c.usuarioId !== id)
+      comunicaciones: store.comunicaciones.filter((c) => c.usuarioId !== id),
+      notasAgenda: store.notasAgenda.filter((n) => n.usuarioId !== id)
     });
   },
 
