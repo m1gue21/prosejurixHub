@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, FileText, GitBranch, MessagesSquare, Plus, Waypoints } from 'lucide-react';
+import { ArrowLeft, BellPlus, FileText, GitBranch, MessagesSquare, Plus, Waypoints } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import TramitePipeline from '../../components/admin/TramitePipeline';
@@ -21,6 +21,8 @@ const UsuarioDetalle = () => {
   const navigate = useNavigate();
   const {
     getUsuario,
+    getUsuarioAsync,
+    isLoaded,
     updateUsuario,
     updateTramite,
     updateEtapa,
@@ -43,19 +45,20 @@ const UsuarioDetalle = () => {
   const [showExtra, setShowExtra] = useState(false);
   const [extraTitulo, setExtraTitulo] = useState('Caso adicional');
 
-  const load = () => {
+  const load = async () => {
     const numericId = Number(id);
     if (!numericId) {
       navigate('/admin/usuarios');
       return;
     }
-    const data = getUsuario(numericId);
+    const data =
+      getUsuario(numericId) || (await getUsuarioAsync(numericId));
     if (!data) {
-      navigate('/admin/usuarios');
+      if (isLoaded) navigate('/admin/usuarios');
       return;
     }
     setUsuario(data);
-    setComunicaciones(getComunicaciones(numericId));
+    setComunicaciones(await getComunicaciones(numericId));
     const principal = data.tramites.find((t) => !t.esCasoAdicional) || data.tramites[0];
     setTramiteId((prev) => prev || principal?.id || null);
     if (principal && !selectedEtapa) {
@@ -64,9 +67,9 @@ const UsuarioDetalle = () => {
   };
 
   useEffect(() => {
-    load();
+    void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, isLoaded]);
 
   const tramite: Tramite | undefined = useMemo(
     () => usuario?.tramites.find((t) => t.id === tramiteId),
@@ -86,11 +89,11 @@ const UsuarioDetalle = () => {
     );
   }
 
-  const reloadLocal = () => {
-    refresh();
-    const data = getUsuario(usuario.id);
+  const reloadLocal = async () => {
+    await refresh();
+    const data = getUsuario(usuario.id) || (await getUsuarioAsync(usuario.id));
     if (data) setUsuario(data);
-    setComunicaciones(getComunicaciones(usuario.id));
+    setComunicaciones(await getComunicaciones(usuario.id));
   };
 
   const tabs: { id: VistaTramite; label: string; icon: typeof Waypoints; count?: number }[] = [
@@ -131,18 +134,37 @@ const UsuarioDetalle = () => {
               </p>
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full sm:w-auto"
-            onClick={() => {
-              setExtraTitulo('Caso adicional');
-              setShowExtra(true);
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Caso adicional
-          </Button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={() =>
+                navigate('/admin/agenda', {
+                  state: {
+                    openCreate: true,
+                    usuarioId: usuario.id,
+                    tramiteId: tramite.id
+                  }
+                })
+              }
+            >
+              <BellPlus className="mr-2 h-4 w-4" />
+              Agregar recordatorio
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={() => {
+                setExtraTitulo('Caso adicional');
+                setShowExtra(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Caso adicional
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -151,13 +173,15 @@ const UsuarioDetalle = () => {
           tramite={tramite}
           editable
           onChange={(updates) => {
-            updateTramite(tramite.id, updates);
-            reloadLocal();
-            notify({
-              type: 'success',
-              title: 'Plazos actualizados',
-              message: 'Caducidad recalculada si aplica'
-            });
+            void (async () => {
+              await updateTramite(tramite.id, updates);
+              await reloadLocal();
+              notify({
+                type: 'success',
+                title: 'Plazos actualizados',
+                message: 'Caducidad recalculada si aplica'
+              });
+            })();
           }}
         />
 
@@ -310,6 +334,30 @@ const UsuarioDetalle = () => {
                 value={getEtapaLabel(tramite.etapaActual)}
               />
             </label>
+            <label className="text-sm sm:col-span-2">
+              <span className="mb-1 block font-medium">Alcance</span>
+              <input
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5"
+                defaultValue={tramite.alcance || ''}
+                key={`alcance-${tramite.id}-${tramite.alcance || ''}`}
+                onBlur={(e) => {
+                  void updateTramite(tramite.id, { alcance: e.target.value });
+                  void reloadLocal();
+                }}
+              />
+            </label>
+            <label className="text-sm sm:col-span-2">
+              <span className="mb-1 block font-medium">Gestión</span>
+              <textarea
+                className="min-h-[72px] w-full rounded-xl border border-slate-200 px-3 py-2.5"
+                defaultValue={tramite.gestion || ''}
+                key={`gestion-${tramite.id}-${tramite.gestion || ''}`}
+                onBlur={(e) => {
+                  void updateTramite(tramite.id, { gestion: e.target.value });
+                  void reloadLocal();
+                }}
+              />
+            </label>
           </div>
 
           <div className="-mx-4 mb-4 flex gap-2 overflow-x-auto border-b border-slate-100 px-4 pb-4 scrollbar-none sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
@@ -360,17 +408,21 @@ const UsuarioDetalle = () => {
             <ArchivosTramite
               tramite={tramite}
               onUpload={(etapaTipo, checklistItemId, archivo) => {
-                upsertDocumento(tramite.id, etapaTipo, checklistItemId, archivo);
-                reloadLocal();
+                void (async () => {
+                  await upsertDocumento(tramite.id, etapaTipo, checklistItemId, archivo);
+                  await reloadLocal();
+                })();
               }}
               onRemove={(etapaTipo, checklistItemId) => {
-                removeDocumento(tramite.id, etapaTipo, checklistItemId);
-                reloadLocal();
-                notify({
-                  type: 'success',
-                  title: 'Archivo eliminado',
-                  message: 'Documento quitado del trámite'
-                });
+                void (async () => {
+                  await removeDocumento(tramite.id, etapaTipo, checklistItemId);
+                  await reloadLocal();
+                  notify({
+                    type: 'success',
+                    title: 'Archivo eliminado',
+                    message: 'Documento quitado del trámite'
+                  });
+                })();
               }}
             />
           )}
@@ -381,22 +433,26 @@ const UsuarioDetalle = () => {
               tramites={usuario.tramites}
               tramiteActualId={tramite.id}
               onCreate={(data) => {
-                createComunicacion(data);
-                reloadLocal();
-                notify({
-                  type: 'success',
-                  title: 'Comunicación registrada',
-                  message: data.asunto || data.tipo
-                });
+                void (async () => {
+                  await createComunicacion(data);
+                  await reloadLocal();
+                  notify({
+                    type: 'success',
+                    title: 'Comunicación registrada',
+                    message: data.asunto || data.tipo
+                  });
+                })();
               }}
               onDelete={(commId) => {
-                deleteComunicacion(commId);
-                reloadLocal();
-                notify({
-                  type: 'success',
-                  title: 'Eliminada',
-                  message: 'Comunicación quitada del historial'
-                });
+                void (async () => {
+                  await deleteComunicacion(commId);
+                  await reloadLocal();
+                  notify({
+                    type: 'success',
+                    title: 'Eliminada',
+                    message: 'Comunicación quitada del historial'
+                  });
+                })();
               }}
             />
           )}
@@ -407,17 +463,21 @@ const UsuarioDetalle = () => {
             etapa={etapa}
             isEtapaActual={tramite.etapaActual === etapa.tipo}
             onSetActual={() => {
-              setEtapaActual(tramite.id, etapa.tipo);
-              reloadLocal();
-              notify({
-                type: 'success',
-                title: 'Etapa actualizada',
-                message: getEtapaLabel(etapa.tipo)
-              });
+              void (async () => {
+                await setEtapaActual(tramite.id, etapa.tipo);
+                await reloadLocal();
+                notify({
+                  type: 'success',
+                  title: 'Etapa actualizada',
+                  message: getEtapaLabel(etapa.tipo)
+                });
+              })();
             }}
             onChange={(updates) => {
-              updateEtapa(tramite.id, etapa.tipo, updates);
-              reloadLocal();
+              void (async () => {
+                await updateEtapa(tramite.id, etapa.tipo, updates);
+                await reloadLocal();
+              })();
             }}
           />
         )}
@@ -465,16 +525,18 @@ const UsuarioDetalle = () => {
             <Button
               className="w-full sm:w-auto"
               onClick={() => {
-                const created = createCasoAdicional(usuario.id, { titulo: extraTitulo });
-                setShowExtra(false);
-                setTramiteId(created.id);
-                setSelectedEtapa(created.etapaActual);
-                reloadLocal();
-                notify({
-                  type: 'success',
-                  title: 'Caso adicional creado',
-                  message: created.titulo
-                });
+                void (async () => {
+                  const created = await createCasoAdicional(usuario.id, { titulo: extraTitulo });
+                  setShowExtra(false);
+                  setTramiteId(created.id);
+                  setSelectedEtapa(created.etapaActual);
+                  await reloadLocal();
+                  notify({
+                    type: 'success',
+                    title: 'Caso adicional creado',
+                    message: created.titulo
+                  });
+                })();
               }}
             >
               Crear

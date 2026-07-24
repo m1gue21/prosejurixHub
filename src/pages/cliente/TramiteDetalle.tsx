@@ -1,8 +1,8 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Circle } from 'lucide-react';
 import Button from '../../components/common/Button';
-import { mockUserStore } from '../../lib/mockUserStore';
+import { getDataStore } from '../../lib/dataProvider';
 import { getEtapaLabel, PIPELINE_LAYOUT } from '../../data/tramitesCatalog';
 import {
   formatFechaEs,
@@ -25,16 +25,28 @@ const TramiteDetalleCliente = () => {
     tramites?: Tramite[];
   };
 
-  const tramite = useMemo(() => {
+  const tramiteFromNav = useMemo(() => {
     if (!id) return undefined;
-    return tramites?.find((t) => t.id === id) || mockUserStore.getTramite(id);
+    return tramites?.find((t) => t.id === id);
   }, [id, tramites]);
+
+  const [tramiteResolved, setTramiteResolved] = useState(tramiteFromNav);
+
+  useEffect(() => {
+    setTramiteResolved(tramiteFromNav);
+    if (tramiteFromNav || !id) return;
+    void Promise.resolve(getDataStore().getTramite(id)).then((t) => {
+      if (t) setTramiteResolved(t);
+    });
+  }, [id, tramiteFromNav]);
 
   useEffect(() => {
     if (!usuarioId || !usuario) {
       navigate('/portal');
     }
   }, [usuarioId, usuario, navigate]);
+
+  const tramite = tramiteResolved;
 
   if (!usuarioId || !usuario || !tramite) {
     return (
@@ -62,9 +74,7 @@ const TramiteDetalleCliente = () => {
                 state: {
                   usuarioId,
                   usuario,
-                  tramites:
-                    tramites ||
-                    (usuario && mockUserStore.getUsuario(usuario.id)?.tramites)
+                  tramites: tramites || [tramite]
                 }
               })
             }

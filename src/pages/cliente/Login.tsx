@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Sparkles, ShieldCheck } from 'lucide-react';
 import ClientLoginForm from '../../components/cliente/ClientLoginForm';
-import { mockUserStore } from '../../lib/mockUserStore';
+import { getDataStore } from '../../lib/dataProvider';
 import { useNotifications } from '../../components/common/NotificationProvider';
 
 const ClienteLogin = () => {
@@ -20,12 +20,12 @@ const ClienteLogin = () => {
       return;
     }
 
-    const usuario = mockUserStore.getUsuario(usuarioId);
+    const usuario = await Promise.resolve(getDataStore().getUsuario(usuarioId));
     if (!usuario || usuario.tramites.length === 0) {
       notify({
         type: 'warning',
         title: 'Sin resultados',
-        message: `No encontramos trámites para el usuario ${usuarioId}. Prueba con 1, 2, 4 o 5.`
+        message: `No encontramos trámites para el usuario ${usuarioId}. Revisa el ID con el equipo.`
       });
       return;
     }
@@ -85,8 +85,7 @@ const ClienteLogin = () => {
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-900/10 sm:rounded-3xl sm:p-6">
                 <h3 className="text-lg font-semibold text-slate-900">¿Qué necesitas?</h3>
                 <p className="mt-2 text-sm text-slate-600">
-                  Introduce el ID de usuario que recibiste de nuestro equipo. En modo demo puedes usar
-                  1, 2, 4 o 5.
+                  Introduce el ID de usuario que recibiste de nuestro equipo.
                 </p>
               </div>
             </aside>

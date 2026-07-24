@@ -9,7 +9,8 @@ import {
   Scale,
   Gavel,
   CheckCircle,
-  Handshake
+  Handshake,
+  CalendarClock
 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import SearchBar from '../../components/common/SearchBar';
@@ -23,16 +24,21 @@ import {
   urgenciaRank,
   urgenciaStyles
 } from '../../lib/caducidad';
+import { countToday, todayIso } from '../../lib/agendaItems';
+import { useAgenda } from '../../hooks/useAgenda';
 import { useNotifications } from '../../components/common/NotificationProvider';
 import { useConfirm } from '../../components/common/ConfirmProvider';
 
 const Usuarios = () => {
   const navigate = useNavigate();
   const { usuarios, isLoaded, stats, createUsuario, deleteUsuario } = useUsuarios();
+  const { allItems } = useAgenda({ mode: 'day', day: todayIso() });
   const { notify } = useNotifications();
   const { confirm } = useConfirm();
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
+
+  const agendaHoy = useMemo(() => countToday(allItems), [allItems]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -83,6 +89,19 @@ const Usuarios = () => {
               </p>
             </div>
             <div className="hidden gap-2 sm:flex">
+              <Button
+                variant="outline"
+                className="border-white/30 bg-white/10 text-white hover:bg-white/20"
+                onClick={() => navigate('/admin/agenda')}
+              >
+                <CalendarClock className="mr-2 h-4 w-4" />
+                Agenda
+                {agendaHoy > 0 && (
+                  <span className="ml-2 rounded-full bg-amber-400 px-2 py-0.5 text-xs font-bold text-slate-900">
+                    {agendaHoy}
+                  </span>
+                )}
+              </Button>
               <Button
                 variant="outline"
                 className="border-white/30 bg-white/10 text-white hover:bg-white/20"
@@ -287,13 +306,14 @@ const Usuarios = () => {
           <Button
             variant="outline"
             className="flex-1"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/admin/agenda')}
           >
-            <LogOut className="mr-2 h-4 w-4" />
-            Salir
+            <CalendarClock className="mr-1 h-4 w-4" />
+            Agenda
+            {agendaHoy > 0 ? ` (${agendaHoy})` : ''}
           </Button>
-          <Button className="flex-[1.4]" onClick={() => setShowModal(true)}>
-            <Plus className="mr-2 h-4 w-4" />
+          <Button className="flex-[1.2]" onClick={() => setShowModal(true)}>
+            <Plus className="mr-1 h-4 w-4" />
             Vincular
           </Button>
         </div>
@@ -303,14 +323,16 @@ const Usuarios = () => {
         <VinculacionForm
           onCancel={() => setShowModal(false)}
           onSubmit={(data) => {
-            const created = createUsuario(data);
-            setShowModal(false);
-            notify({
-              type: 'success',
-              title: 'Usuario vinculado',
-              message: `${created.nombre} (ID ${created.id})`
-            });
-            navigate(`/admin/usuarios/${created.id}`);
+            void (async () => {
+              const created = await createUsuario(data);
+              setShowModal(false);
+              notify({
+                type: 'success',
+                title: 'Usuario vinculado',
+                message: `${created.nombre} (ID ${created.id})`
+              });
+              navigate(`/admin/usuarios/${created.id}`);
+            })();
           }}
         />
       </Modal>

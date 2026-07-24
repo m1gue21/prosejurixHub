@@ -15,6 +15,7 @@ import AdminLogin from './pages/admin/Login';
 import Dashboard from './pages/admin/Dashboard';
 import Usuarios from './pages/admin/Usuarios';
 import UsuarioDetalle from './pages/admin/UsuarioDetalle';
+import Agenda from './pages/admin/Agenda';
 import ScrollToTop from './components/common/ScrollToTop';
 
 function App() {
@@ -27,6 +28,7 @@ function App() {
           <Route path="/admin/dashboard" element={<Dashboard />} />
           <Route path="/admin/usuarios" element={<Usuarios />} />
           <Route path="/admin/usuarios/:id" element={<UsuarioDetalle />} />
+          <Route path="/admin/agenda" element={<Agenda />} />
           <Route path="/admin/procesos" element={<Navigate to="/admin/usuarios" replace />} />
           <Route path="/admin/procesos/:id" element={<Navigate to="/admin/usuarios" replace />} />
 

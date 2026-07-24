@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Download, Eye, Replace, Trash2, Upload } from 'lucide-react';
+import { Download, ExternalLink, Eye, Replace, Trash2, Upload } from 'lucide-react';
 import Button from '../common/Button';
 import DocumentoPreviewModal from './DocumentoPreviewModal';
 import { getEtapaCatalog, getEtapaLabel } from '../../data/tramitesCatalog';
@@ -164,10 +164,10 @@ const EtapaPanel = ({ etapa, isEtapaActual, onChange, onSetActual }: EtapaPanelP
                 className="rounded-2xl border border-slate-100 px-3 py-3 hover:bg-slate-50"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
                     <input
                       type="checkbox"
-                      className="mt-1"
+                      className="mt-1 shrink-0"
                       checked={item.completado}
                       disabled={item.requiereDocumento}
                       onChange={() => toggleChecklist(item.id)}
@@ -185,16 +185,27 @@ const EtapaPanel = ({ etapa, isEtapaActual, onChange, onSetActual }: EtapaPanelP
                       >
                         {item.label}
                       </span>
+                      {item.requiereDocumento && item.archivo && src && (
+                        <a
+                          href={src}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 inline-flex max-w-full items-center gap-1 text-sm font-medium text-blue-700 underline-offset-2 hover:underline"
+                          title="Abrir documento"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{item.archivo.nombre}</span>
+                        </a>
+                      )}
                       {item.requiereDocumento && (
                         <span className="mt-0.5 block text-[11px] text-slate-400">
-                          Requiere documento
                           {item.archivo
-                            ? ` · ${item.archivo.nombre} · ${formatFechaDoc(item.archivo.fechaAnadido)} · ${formatBytes(item.archivo.size)}`
-                            : ' · pendiente'}
+                            ? `${formatFechaDoc(item.archivo.fechaAnadido)} · ${formatBytes(item.archivo.size)}`
+                            : 'Requiere documento · pendiente'}
                         </span>
                       )}
                     </span>
-                  </label>
+                  </div>
 
                   {item.requiereDocumento && (
                     <div className="mt-2 grid w-full grid-cols-2 gap-2 sm:mt-0 sm:flex sm:w-auto sm:flex-wrap">

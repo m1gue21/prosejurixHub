@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { mockUserStore } from '../lib/mockUserStore';
+import { getActiveDataSource, getDataStore } from '../lib/dataProvider';
 import {
   ChecklistItem,
   Comunicacion,
@@ -14,118 +14,142 @@ import {
 export const useUsuarios = () => {
   const [usuarios, setUsuarios] = useState<UsuarioConTramites[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [source] = useState(getActiveDataSource);
 
-  const refresh = useCallback(() => {
-    setUsuarios(mockUserStore.getAll());
+  const refresh = useCallback(async () => {
+    const store = getDataStore();
+    const data = await Promise.resolve(store.getAll());
+    setUsuarios(data);
     setIsLoaded(true);
   }, []);
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [refresh]);
 
-  const createUsuario = (
-    data: Parameters<typeof mockUserStore.createUsuario>[0]
-  ) => {
-    const created = mockUserStore.createUsuario(data);
-    refresh();
+  const createUsuario = async (data: Parameters<ReturnType<typeof getDataStore>['createUsuario']>[0]) => {
+    const created = await Promise.resolve(getDataStore().createUsuario(data));
+    await refresh();
     return created;
   };
 
-  const updateUsuario = (id: number, updates: Partial<Usuario>) => {
-    const updated = mockUserStore.updateUsuario(id, updates);
-    refresh();
+  const updateUsuario = async (id: number, updates: Partial<Usuario>) => {
+    const updated = await Promise.resolve(getDataStore().updateUsuario(id, updates));
+    await refresh();
     return updated;
   };
 
-  const deleteUsuario = (id: number) => {
-    mockUserStore.deleteUsuario(id);
-    refresh();
+  const deleteUsuario = async (id: number) => {
+    await Promise.resolve(getDataStore().deleteUsuario(id));
+    await refresh();
   };
 
-  const getUsuario = (id: number) => mockUserStore.getUsuario(id);
+  const getUsuario = (id: number) => {
+    // sync cache first
+    const cached = usuarios.find((u) => u.id === id);
+    if (cached) return cached;
+    return undefined;
+  };
 
-  const updateTramite = (id: string, updates: Partial<Tramite>) => {
-    const updated = mockUserStore.updateTramite(id, updates);
-    refresh();
+  const getUsuarioAsync = async (id: number) => {
+    const found = await Promise.resolve(getDataStore().getUsuario(id));
+    return found;
+  };
+
+  const updateTramite = async (id: string, updates: Partial<Tramite>) => {
+    const updated = await Promise.resolve(getDataStore().updateTramite(id, updates));
+    await refresh();
     return updated;
   };
 
-  const updateEtapa = (
+  const updateEtapa = async (
     tramiteId: string,
     etapaTipo: TipoEtapa,
     updates: Partial<EtapaTramite> & { checklist?: ChecklistItem[] }
   ) => {
-    const updated = mockUserStore.updateEtapa(tramiteId, etapaTipo, updates);
-    refresh();
+    const updated = await Promise.resolve(getDataStore().updateEtapa(tramiteId, etapaTipo, updates));
+    await refresh();
     return updated;
   };
 
-  const setEtapaActual = (tramiteId: string, etapaTipo: TipoEtapa) => {
-    const updated = mockUserStore.setEtapaActual(tramiteId, etapaTipo);
-    refresh();
+  const setEtapaActual = async (tramiteId: string, etapaTipo: TipoEtapa) => {
+    const updated = await Promise.resolve(getDataStore().setEtapaActual(tramiteId, etapaTipo));
+    await refresh();
     return updated;
   };
 
-  const createCasoAdicional = (
+  const createCasoAdicional = async (
     usuarioId: number,
-    data: Parameters<typeof mockUserStore.createCasoAdicional>[1]
+    data: Parameters<ReturnType<typeof getDataStore>['createCasoAdicional']>[1]
   ) => {
-    const created = mockUserStore.createCasoAdicional(usuarioId, data);
-    refresh();
+    const created = await Promise.resolve(getDataStore().createCasoAdicional(usuarioId, data));
+    await refresh();
     return created;
   };
 
-  const upsertDocumento = (
+  const upsertDocumento = async (
     tramiteId: string,
     etapaTipo: TipoEtapa,
     checklistItemId: string,
     archivo: DocumentoArchivo
   ) => {
-    const updated = mockUserStore.upsertDocumento(tramiteId, etapaTipo, checklistItemId, archivo);
-    refresh();
+    const updated = await Promise.resolve(
+      getDataStore().upsertDocumento(tramiteId, etapaTipo, checklistItemId, archivo)
+    );
+    await refresh();
     return updated;
   };
 
-  const removeDocumento = (
+  const removeDocumento = async (
     tramiteId: string,
     etapaTipo: TipoEtapa,
     checklistItemId: string
   ) => {
-    const updated = mockUserStore.removeDocumento(tramiteId, etapaTipo, checklistItemId);
-    refresh();
+    const updated = await Promise.resolve(
+      getDataStore().removeDocumento(tramiteId, etapaTipo, checklistItemId)
+    );
+    await refresh();
     return updated;
   };
 
-  const getComunicaciones = (usuarioId: number, tramiteId?: string) =>
-    mockUserStore.getComunicaciones(usuarioId, tramiteId);
+  const getComunicaciones = async (usuarioId: number, tramiteId?: string) =>
+    Promise.resolve(getDataStore().getComunicaciones(usuarioId, tramiteId));
 
-  const createComunicacion = (data: Omit<Comunicacion, 'id'> & { id?: string }) => {
-    const created = mockUserStore.createComunicacion(data);
-    refresh();
+  const createComunicacion = async (data: Omit<Comunicacion, 'id'> & { id?: string }) => {
+    const created = await Promise.resolve(getDataStore().createComunicacion(data));
+    await refresh();
     return created;
   };
 
-  const updateComunicacion = (id: string, updates: Partial<Comunicacion>) => {
-    const updated = mockUserStore.updateComunicacion(id, updates);
-    refresh();
-    return updated;
+  const deleteComunicacion = async (id: string) => {
+    await Promise.resolve(getDataStore().deleteComunicacion(id));
+    await refresh();
   };
 
-  const deleteComunicacion = (id: string) => {
-    mockUserStore.deleteComunicacion(id);
-    refresh();
-  };
+  const stats = (() => {
+    const tramites = usuarios.flatMap((u) => u.tramites);
+    return {
+      totalUsuarios: usuarios.length,
+      totalTramites: tramites.length,
+      activos: tramites.filter((t) => t.estadoGeneral === 'activo').length,
+      finalizados: tramites.filter((t) => t.estadoGeneral === 'finalizado').length,
+      enReclamacion: tramites.filter((t) => t.etapaActual === 'reclamacion_aseguradora').length,
+      enConciliacion: tramites.filter((t) => t.etapaActual === 'conciliacion_prejudicial').length,
+      enJudicial: tramites.filter((t) => t.etapaActual === 'proceso_judicial').length
+    };
+  })();
 
   return {
     usuarios,
     isLoaded,
+    source,
     refresh,
-    stats: mockUserStore.getStats(),
+    stats,
     createUsuario,
     updateUsuario,
     deleteUsuario,
     getUsuario,
+    getUsuarioAsync,
     updateTramite,
     updateEtapa,
     setEtapaActual,
@@ -134,7 +158,6 @@ export const useUsuarios = () => {
     removeDocumento,
     getComunicaciones,
     createComunicacion,
-    updateComunicacion,
     deleteComunicacion
   };
 };

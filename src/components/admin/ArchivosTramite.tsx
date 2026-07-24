@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import {
   Download,
+  ExternalLink,
   Eye,
   FilePlus2,
   FileText,
@@ -138,14 +139,28 @@ const ArchivosTramite = ({ tramite, onUpload, onRemove }: ArchivosTramiteProps) 
               >
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-slate-900">{item.label}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    {item.etapaLabel}
-                    {item.archivo
-                      ? ` · ${item.archivo.nombre} · ${formatFechaDoc(item.archivo.fechaAnadido)}`
-                      : item.requiereDocumento
-                        ? ' · Sin archivo'
-                        : ' · No requiere archivo'}
-                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500">{item.etapaLabel}</p>
+                  {item.archivo && src ? (
+                    <a
+                      href={src}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 inline-flex max-w-full items-center gap-1 text-sm font-medium text-blue-700 underline-offset-2 hover:underline"
+                      title="Abrir documento"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{item.archivo.nombre}</span>
+                    </a>
+                  ) : (
+                    <p className="mt-1 text-xs text-slate-400">
+                      {item.requiereDocumento ? 'Sin archivo' : 'No requiere archivo'}
+                    </p>
+                  )}
+                  {item.archivo && (
+                    <p className="mt-0.5 text-[11px] text-slate-400">
+                      {formatFechaDoc(item.archivo.fechaAnadido)}
+                    </p>
+                  )}
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-0 sm:flex sm:flex-wrap">
                   {item.archivo && src && (
