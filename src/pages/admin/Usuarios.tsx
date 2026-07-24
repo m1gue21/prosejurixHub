@@ -31,7 +31,7 @@ import { useConfirm } from '../../components/common/ConfirmProvider';
 
 const Usuarios = () => {
   const navigate = useNavigate();
-  const { usuarios, isLoaded, stats, createUsuario, deleteUsuario } = useUsuarios();
+  const { usuarios, isLoaded, stats, source, createUsuario, deleteUsuario } = useUsuarios();
   const { allItems } = useAgenda({ mode: 'day', day: todayIso() });
   const { notify } = useNotifications();
   const { confirm } = useConfirm();
@@ -121,23 +121,35 @@ const Usuarios = () => {
 
       <main className="mx-auto max-w-7xl safe-px py-5 sm:px-6 sm:py-8 lg:px-8">
         <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900 sm:mb-6 sm:px-4 sm:text-sm">
-          <strong>Modo demo local:</strong> datos en el navegador. Portal: ID 1, 4 o 5.
+          {source === 'supabase' ? (
+            <>
+              <strong>Supabase:</strong> datos en la nube. Los cambios se guardan en el proyecto conectado.
+            </>
+          ) : (
+            <>
+              <strong>Modo demo local:</strong> datos en el navegador. Portal: usa un ID de usuario del listado.
+            </>
+          )}
         </div>
 
-        <div className="-mx-4 mb-6 flex gap-3 overflow-x-auto px-4 pb-1 scrollbar-none sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="mb-6 grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 xl:grid-cols-6">
           {cards.map((card) => {
             const Icon = card.icon;
             return (
               <div
                 key={card.title}
-                className={`min-w-[140px] shrink-0 rounded-2xl bg-gradient-to-br ${card.gradient} p-3 text-white shadow-lg sm:min-w-0 sm:rounded-3xl sm:p-4`}
+                className={`rounded-2xl bg-gradient-to-br ${card.gradient} p-3 text-white shadow-lg sm:rounded-3xl sm:p-4`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-white/70">{card.title}</p>
-                    <p className="mt-1 text-2xl font-semibold sm:text-3xl">{card.value}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-[10px] uppercase tracking-wider text-white/70 sm:text-[11px]">
+                      {card.title}
+                    </p>
+                    <p className="mt-1 text-xl font-semibold tabular-nums sm:text-2xl lg:text-3xl">
+                      {card.value}
+                    </p>
                   </div>
-                  <Icon className="h-5 w-5 opacity-80 sm:h-6 sm:w-6" />
+                  <Icon className="mt-0.5 h-4 w-4 shrink-0 opacity-80 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
                 </div>
               </div>
             );
