@@ -1,93 +1,82 @@
-# Configuración de Supabase
+# Configuración de Supabase — ProsejurixHub
 
-## ✅ Estado de la Configuración
+## Modelo de datos actual (usuarios / trámites)
 
-El archivo `.env` ha sido creado automáticamente con tus credenciales de Supabase. La aplicación ahora está lista para conectarse a tu base de datos.
+Ya **no** se usa `CTRANTECEDENTES` como fuente principal del admin.
+El esquema nuevo está en `supabase/migrations/001_usuarios_tramites.sql`:
 
-## Pasos para conectar con Supabase
+- `usuarios`, `tramites` (incl. `alcance`, `gestion`, `origen_key`)
+- `etapas` (checklist JSONB con links Drive)
+- `comunicaciones`, `agenda_notas`, `profiles`
+- RPC `keepalive_ping()` para el plan Free
 
-1. **Archivo .env** ✅
-   
-   El archivo `.env` ya ha sido creado en la raíz del proyecto con las siguientes credenciales:
+## Variables de entorno (`.env`)
 
-   ```
-   VITE_SUPABASE_URL=https://laguwzscrdoqndzzdlpj.supabase.co
-   VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhZ3V3enNjcmRvcW5kenpkbHBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NjU0OTgsImV4cCI6MjA3NzQ0MTQ5OH0.ne-8UYArE_g5iOpiVCF0LdpGLoz5oD3Edi9lpVaRVu0
-   ```
+```env
+VITE_SUPABASE_URL=https://TU_PROYECTO.supabase.co
+VITE_SUPABASE_ANON_KEY=tu_anon_key
 
-   **Nota importante:** En Vite, las variables de entorno deben usar el prefijo `VITE_` para ser accesibles en el cliente.
-   
-   Si necesitas cambiar las credenciales, edita el archivo `.env` y reinicia el servidor de desarrollo.
+# mock (default) | supabase
+# mock = seed desde CSVs Manizales en localStorage
+# supabase = lee/escribe tablas nuevas
+VITE_DATA_SOURCE=mock
+```
 
-2. **Verificar nombre de la tabla**
+Reinicia `npm run dev` tras cambiar el `.env`.
 
-   La aplicación busca la tabla `CTRANTECEDENTES`. Si el nombre de tu tabla en Supabase es diferente:
-   
-   - Abre `src/hooks/useProcesses.ts`
-   - Busca todas las referencias a `'CTRANTECEDENTES'`
-   - Reemplázalas con el nombre exacto de tu tabla
+## Cutover desde Google Sheets
 
-   La aplicación intenta automáticamente diferentes variaciones del nombre (mayúsculas, minúsculas, con guiones bajos, etc.) para encontrar la tabla correcta.
-
-3. **Verificar estructura de columnas**
-
-   La aplicación espera las siguientes columnas (pueden variar según tu estructura):
-
-   - `id` (número)
-   - `cliente_id` (número)
-   - `cliente_nombre` (texto)
-   - `cedula` (texto)
-   - `estado` (texto: 'activo', 'finalizado', 'en_espera')
-   - `estado_publico` (texto)
-   - `tipo` (texto)
-   - `fecha` (fecha)
-   - `fecha_ingreso` (fecha)
-   - `demandado` (texto)
-   - `observaciones` (texto)
-   - `observaciones_internas` (texto)
-   - `observaciones_cliente` (texto)
-   - `juzgado` (texto)
-   - `placa_vehiculo` (texto)
-   - `valor_honorarios` (número)
-   - `valor_peritaje` (número)
-   - `valor_prestamos` (número)
-   - `gastos_adicionales` (número)
-   - `fecha_radicacion` (fecha)
-
-4. **Reiniciar el servidor de desarrollo**
-
-   Después de crear el archivo `.env`, reinicia el servidor de desarrollo:
+1. En el SQL Editor de Supabase, ejecuta `supabase/migrations/001_usuarios_tramites.sql`.
+2. Importa los CSV actualizados:
 
    ```bash
-   npm run dev
+   # Solo genera JSON local (sin red)
+   node scripts/import-manizales.mjs
+
+   # Inserta en Supabase (usa VITE_SUPABASE_URL + anon o service role)
+   node scripts/import-manizales.mjs --supabase
    ```
 
-5. **Verificar conexión**
+   Fuentes oficiales:
 
-   La aplicación ahora incluye validaciones automáticas que:
-   - Verifican que el archivo `.env` esté configurado
-   - Muestran mensajes de error claros en la consola si hay problemas
-   - Intentan detectar automáticamente el nombre correcto de la tabla
-   
-   Para verificar la conexión:
-   1. Abre la consola del navegador (F12)
-   2. Busca mensajes que empiecen con ✓ (éxito) o ❌ (error)
-   3. Si hay errores:
-      - Verifica que las credenciales en `.env` sean correctas
-      - Verifica que el nombre de la tabla sea exacto
-      - Verifica los permisos de la tabla en Supabase (RLS - Row Level Security)
-   
-   **Mensajes importantes en consola:**
-   - `✓ Conexión a Supabase verificada correctamente` - Todo está bien
-   - `✓ Nombre de tabla correcto encontrado: "..."` - La tabla fue encontrada
-   - `✓ Datos obtenidos de Supabase` - Los datos se cargaron exitosamente
-   - `❌ ERROR: Variables de entorno de Supabase no configuradas` - Revisa tu archivo .env
+   - `actualizadoPROCESOS MANIZALES.xlsx - CONTROL PROCESOS ACCIDENTES(1).csv`
+   - `actualizadoPROCESOS MANIZALES.xlsx - ACTIVOS(1).csv`
 
-## Ordenamiento de datos
+3. En Vercel / `.env`: `VITE_DATA_SOURCE=supabase`.
+4. Deja de editar Sheets como fuente de verdad.
+5. Configura keep-alive (abajo) para no pausar el Free.
 
-Los datos se ordenan automáticamente por:
-1. Nombre del cliente (ascendente)
-2. Fecha de ingreso (descendente)
+## Keep-alive (plan Free)
 
-Esto significa que los procesos se agrupan por cliente y dentro de cada cliente, los más recientes aparecen primero.
+Supabase Free pausa el proyecto ~7 días sin tráfico.
 
+- Workflow: `.github/workflows/supabase-keepalive.yml` (cada 3 h).
+- Secrets del repo: `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
+- Alternativa: Vercel Cron que haga `POST /rest/v1/rpc/keepalive_ping`.
+
+## Límites Free y cuándo pasar a Pro (~$25/mes)
+
+Quedarse en Free mientras:
+
+- El equipo aguante posible pausa si falla el cron
+- No se necesite Storage (usamos Drive vía `urlExterna`)
+- No se necesite Realtime
+
+Pasar a Pro cuando:
+
+- Operación diaria no pueda arriesgar pausa
+- Hagan falta backups/point-in-time o más cuota
+- Auth/RLS endurecido para producción real con varios usuarios
+
+## Auth / RLS
+
+Hoy las políticas permiten `anon` all (piloto Free). Antes de datos sensibles en producción:
+
+1. Auth de admin (`profiles.role = 'admin'`)
+2. Políticas solo para `authenticated` admin
+3. Portal cliente: solo lectura de su `usuario_id`
+
+## Legacy
+
+`useProcesses` / `CTRANTECEDENTES` pueden seguir existiendo; no invertir más ahí.
+El admin y el portal de trámites usan `dataProvider` → mock o `usuariosRepo`.
