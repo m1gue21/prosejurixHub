@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "import:manizales": "node scripts/import-manizales.mjs",
+    "import:manizales:supabase": "node scripts/import-manizales.mjs --supabase"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.78.0",
