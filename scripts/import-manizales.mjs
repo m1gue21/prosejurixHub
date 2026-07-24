@@ -219,6 +219,158 @@ for (const r of rows) {
   byCed.get(ced).push(r);
 }
 
+const inferEtapaFromText = (blobRaw, estado) => {
+  const blob = String(blobRaw || '').toLowerCase();
+  if (estado === 'finalizado' || blob.includes('paz y salvo') || blob.includes('cerrado')) {
+    if (blob.includes('demanda') || blob.includes('judicial') || blob.includes('sentencia')) {
+      return 'proceso_judicial';
+    }
+    return 'reclamacion_aseguradora';
+  }
+  if (
+    blob.includes('demanda') ||
+    blob.includes('judicial') ||
+    blob.includes('audiencia') ||
+    blob.includes('juzgado')
+  ) {
+    return 'proceso_judicial';
+  }
+  if (blob.includes('concili')) return 'conciliacion_prejudicial';
+  if (blob.includes('dictamen') || blob.includes('medicina legal')) return 'medico_legal';
+  if (blob.includes('reclam') || blob.includes('asegur')) return 'reclamacion_aseguradora';
+  if (blob.includes('querella') || blob.includes('fiscal')) return 'accion_penal';
+  return 'accion_penal';
+};
+
+const ETAPA_ORDER = [
+  'vinculacion',
+  'liberacion_vehiculos',
+  'accion_penal',
+  'medico_clinico',
+  'medico_legal',
+  'reclamacion_aseguradora',
+  'medico_laboral',
+  'conciliacion_prejudicial',
+  'proceso_judicial'
+];
+
+const buildEtapasForTramite = (t) => {
+  const actual = t.etapa_actual;
+  const idx = ETAPA_ORDER.indexOf(actual);
+  const today = t.fecha_accidente || t.fecha_ingreso || new Date().toISOString().slice(0, 10);
+  const docByEtapa = {
+    accion_penal: t._docs.denuncia
+      ? {
+          id: 'querella',
+          label: 'Querella / denuncia',
+          completado: true,
+          requiereDocumento: true,
+          archivo: {
+            id: `doc-${t.id}-den`,
+            nombre: 'denuncia.pdf',
+            mimeType: 'application/pdf',
+            size: 0,
+            fechaAnadido: new Date().toISOString(),
+            urlExterna: t._docs.denuncia
+          }
+        }
+      : null,
+    medico_legal: t._docs.dictamen
+      ? {
+          id: 'dictamenes',
+          label: 'Dictámenes',
+          completado: true,
+          requiereDocumento: true,
+          archivo: {
+            id: `doc-${t.id}-dict`,
+            nombre: 'dictamen.pdf',
+            mimeType: 'application/pdf',
+            size: 0,
+            fechaAnadido: new Date().toISOString(),
+            urlExterna: t._docs.dictamen
+          }
+        }
+      : null,
+    reclamacion_aseguradora: t._docs.reclamacion
+      ? {
+          id: 'reclamacion',
+          label: 'Reclamación',
+          completado: true,
+          requiereDocumento: true,
+          archivo: {
+            id: `doc-${t.id}-rec`,
+            nombre: 'reclamacion.pdf',
+            mimeType: 'application/pdf',
+            size: 0,
+            fechaAnadido: new Date().toISOString(),
+            urlExterna: t._docs.reclamacion
+          }
+        }
+      : null,
+    conciliacion_prejudicial: t._docs.conciliacion
+      ? {
+          id: 'acta',
+          label: 'Acta de conciliación',
+          completado: true,
+          requiereDocumento: true,
+          archivo: {
+            id: `doc-${t.id}-conc`,
+            nombre: 'conciliacion.pdf',
+            mimeType: 'application/pdf',
+            size: 0,
+            fechaAnadido: new Date().toISOString(),
+            urlExterna: t._docs.conciliacion
+          }
+        }
+      : null,
+    proceso_judicial: t._docs.demanda
+      ? {
+          id: 'demanda',
+          label: 'Demanda',
+          completado: true,
+          requiereDocumento: true,
+          archivo: {
+            id: `doc-${t.id}-dem`,
+            nombre: 'demanda.pdf',
+            mimeType: 'application/pdf',
+            size: 0,
+            fechaAnadido: new Date().toISOString(),
+            urlExterna: t._docs.demanda
+          }
+        }
+      : null
+  };
+
+  return ETAPA_ORDER.map((tipo) => {
+    const eIdx = ETAPA_ORDER.indexOf(tipo);
+    let estado = 'pendiente';
+    let fecha_inicio = null;
+    let fecha_fin = null;
+    if (tipo === 'liberacion_vehiculos') {
+      estado = 'no_aplica';
+    } else if (tipo === 'vinculacion' || eIdx < idx) {
+      estado = 'completada';
+      fecha_inicio = today;
+      fecha_fin = today;
+    } else if (tipo === actual) {
+      estado = 'en_curso';
+      fecha_inicio = today;
+    }
+    const checklist = [];
+    const doc = docByEtapa[tipo];
+    if (doc) checklist.push(doc);
+    return {
+      id: `${t.id}-${tipo}`,
+      tramite_id: t.id,
+      tipo,
+      estado,
+      fecha_inicio,
+      fecha_fin,
+      checklist
+    };
+  });
+};
+
 const usuarios = [];
 const tramites = [];
 let uid = 1;
@@ -249,13 +401,17 @@ for (const [cedKey, list] of byCed) {
     const estado = String(r.estado || '').toLowerCase().includes('inactiv')
       ? 'finalizado'
       : 'activo';
+    const blob = [r.actuacion, r.gestion, r.alcance, r.estadoProceso, r.estado]
+      .filter(Boolean)
+      .join(' ');
+    const etapaActual = inferEtapaFromText(blob, estado);
     tramites.push({
       id: `t-m-${tid++}`,
       usuario_id: id,
       titulo: r.clase || r.aseguradora || `Caso ${r.nombre}`,
       caso_label: [r.aseguradora, fechaAccidente].filter(Boolean).join(' · ') || null,
       estado_general: estado,
-      etapa_actual: 'accion_penal',
+      etapa_actual: etapaActual,
       es_caso_adicional: idx > 0,
       fecha_accidente: fechaAccidente,
       lugar_accidente: r.lugar || null,
@@ -281,13 +437,19 @@ for (const [cedKey, list] of byCed) {
   });
 }
 
+const etapaCounts = tramites.reduce((acc, t) => {
+  acc[t.etapa_actual] = (acc[t.etapa_actual] || 0) + 1;
+  return acc;
+}, {});
+
 const summary = {
   control: control.length,
   activos: activos.length,
   merged,
   soloActivos,
   usuarios: usuarios.length,
-  tramites: tramites.length
+  tramites: tramites.length,
+  etapas: etapaCounts
 };
 
 writeFileSync(
@@ -365,33 +527,8 @@ if (tErr) {
   process.exit(1);
 }
 
-// Etapas mínimas: una fila accion_penal por trámite + docs en checklist
-const etapas = tramites.map((t) => {
-  const checklist = [];
-  if (t._docs.denuncia) {
-    checklist.push({
-      id: 'querella',
-      label: 'Querella / denuncia',
-      completado: true,
-      requiereDocumento: true,
-      archivo: {
-        id: `doc-${t.id}-den`,
-        nombre: 'denuncia.pdf',
-        mimeType: 'application/pdf',
-        size: 0,
-        fechaAnadido: new Date().toISOString(),
-        urlExterna: t._docs.denuncia
-      }
-    });
-  }
-  return {
-    id: `${t.id}-accion_penal`,
-    tramite_id: t.id,
-    tipo: 'accion_penal',
-    estado: 'en_curso',
-    checklist
-  };
-});
+// Etapas completas con progreso inferido + links Drive
+const etapas = tramites.flatMap((t) => buildEtapasForTramite(t));
 
 const { error: eErr } = await supabase.from('etapas').upsert(etapas, { onConflict: 'id' });
 if (eErr) {

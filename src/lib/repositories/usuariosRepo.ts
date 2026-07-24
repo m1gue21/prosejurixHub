@@ -123,12 +123,18 @@ const loadEtapasFor = async (tramiteIds: string[]): Promise<Map<string, EtapaTra
   const client = requireClient();
   const map = new Map<string, EtapaTramite[]>();
   if (!tramiteIds.length) return map;
-  const { data, error } = await client.from('etapas').select('*').in('tramite_id', tramiteIds);
-  if (error) throw error;
-  for (const row of data || []) {
-    const list = map.get(String(row.tramite_id)) || [];
-    list.push(mapEtapa(row));
-    map.set(String(row.tramite_id), list);
+
+  // PostgREST limita ~1000 filas; con 9 etapas/trámite hay que pedir por lotes.
+  const chunkSize = 40;
+  for (let i = 0; i < tramiteIds.length; i += chunkSize) {
+    const slice = tramiteIds.slice(i, i + chunkSize);
+    const { data, error } = await client.from('etapas').select('*').in('tramite_id', slice);
+    if (error) throw error;
+    for (const row of data || []) {
+      const list = map.get(String(row.tramite_id)) || [];
+      list.push(mapEtapa(row));
+      map.set(String(row.tramite_id), list);
+    }
   }
   return map;
 };
