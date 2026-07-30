@@ -238,7 +238,7 @@ const ServiceDetail = () => {
       <LandingLayout>
         <div className="mx-auto max-w-3xl px-4 py-32 text-center text-white">
           <h1 className="text-4xl font-bold">Servicio no encontrado</h1>
-          <Link to="/servicios" className="mt-6 inline-flex items-center text-blue-200 hover:text-white">
+          <Link to="/web/servicios" className="mt-6 inline-flex items-center text-blue-200 hover:text-white">
             <ArrowLeft className="mr-2 h-4 w-4" /> Volver a servicios
         </Link>
       </div>
@@ -252,7 +252,7 @@ const ServiceDetail = () => {
         <div className={`absolute inset-0 bg-gradient-to-br ${service.color} opacity-20`} />
         <div className="relative mx-auto max-w-5xl px-4 py-24 sm:px-6 lg:px-8 lg:py-32">
         <Link 
-          to="/servicios" 
+          to="/web/servicios" 
             className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-blue-200/80 transition hover:border-white/20 hover:bg-white/10"
         >
             <ArrowLeft className="h-4 w-4" /> Volver a Servicios
@@ -281,7 +281,7 @@ const ServiceDetail = () => {
             </div>
               <div className="mt-6 space-y-3">
                 <Link
-                  to="/contacto"
+                  to="/web/contacto"
                   className="flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-semibold text-blue-700 shadow-lg shadow-white/20 transition hover:-translate-y-0.5 hover:bg-blue-50"
                 >
                   Agenda tu Consulta
@@ -380,7 +380,7 @@ const ServiceDetail = () => {
           </p>
           <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
           <Link
-            to="/contacto"
+            to="/web/contacto"
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-4 text-base font-semibold text-blue-700 shadow-lg shadow-white/20 transition hover:-translate-y-0.5 hover:bg-blue-50"
           >
             Agenda tu Consulta Gratuita

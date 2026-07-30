@@ -95,7 +95,7 @@ const Home = () => {
             </p>
             <div className="flex flex-col gap-4 sm:flex-row">
               <Link
-                to="/contacto"
+                to="/web/contacto"
                 className="group inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-400 px-8 py-4 text-base font-semibold text-slate-900 shadow-lg shadow-yellow-400/30 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-yellow-300/40"
               >
                 Agenda tu Consulta Gratuita
@@ -176,7 +176,7 @@ const Home = () => {
                   {service.description}
                 </p>
                 <Link
-                  to={`/servicios/${service.id}`}
+                  to={`/web/servicios/${service.id}`}
                   className="relative mt-8 inline-flex items-center text-sm font-semibold text-blue-200 transition-colors hover:text-white"
                 >
                   Ver más detalles
@@ -271,7 +271,7 @@ const Home = () => {
           </p>
           <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
             <Link
-              to="/contacto"
+              to="/web/contacto"
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-4 text-base font-semibold text-blue-700 shadow-lg shadow-white/20 transition hover:-translate-y-0.5 hover:bg-blue-50"
             >
               Contáctanos Ahora

@@ -7,16 +7,16 @@ const Navbar = () => {
   const location = useLocation();
 
   const navigation = [
-    { name: 'Inicio', href: '/', icon: Home },
-    { name: 'Sobre Nosotros', href: '/sobre-nosotros', icon: Info },
-    { name: 'Servicios', href: '/servicios', icon: Briefcase },
-    { name: 'Blog', href: '/blog', icon: BookOpen },
-    { name: 'Contacto', href: '/contacto', icon: Mail },
+    { name: 'Inicio', href: '/web', icon: Home },
+    { name: 'Sobre Nosotros', href: '/web/sobre-nosotros', icon: Info },
+    { name: 'Servicios', href: '/web/servicios', icon: Briefcase },
+    { name: 'Blog', href: '/web/blog', icon: BookOpen },
+    { name: 'Contacto', href: '/web/contacto', icon: Mail },
   ];
 
   const isActive = (path: string) => {
-    if (path === '/') {
-      return location.pathname === '/';
+    if (path === '/web') {
+      return location.pathname === '/web' || location.pathname === '/web/';
     }
     return location.pathname.startsWith(path);
   };
@@ -25,7 +25,7 @@ const Navbar = () => {
     <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <Link
-          to="/"
+          to="/web"
           className="group flex items-center space-x-4 px-3 py-2"
         >
           <img

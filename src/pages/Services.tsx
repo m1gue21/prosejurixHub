@@ -151,7 +151,7 @@ const Services = () => {
                     </ul>
                   </div>
                   <Link
-                    to={`/servicios/${service.id}`}
+                    to={`/web/servicios/${service.id}`}
                   className="relative mt-8 inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-3 text-sm font-semibold text-blue-200 transition hover:border-white/30 hover:text-white"
                   >
                   Ver detalle del servicio
@@ -206,7 +206,7 @@ const Services = () => {
           </p>
           <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
             <Link
-              to="/contacto"
+              to="/web/contacto"
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-4 text-base font-semibold text-blue-700 shadow-lg shadow-white/20 transition hover:-translate-y-0.5 hover:bg-blue-50"
             >
               Agenda tu Consulta

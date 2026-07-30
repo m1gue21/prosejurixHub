@@ -46,14 +46,14 @@ const Blog = () => {
             </div>
             <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
               <a
-                href="/contacto"
+                href="/web/contacto"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-semibold text-blue-700 shadow-lg shadow-white/20 transition hover:-translate-y-0.5 hover:bg-blue-50"
               >
                 Solicita una Consulta
                 <ArrowRight className="h-4 w-4" />
               </a>
               <a
-                href="/servicios"
+                href="/web/servicios"
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/40 hover:bg-white/10"
               >
                 Conoce Nuestros Servicios

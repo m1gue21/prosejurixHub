@@ -31,22 +31,22 @@ const Footer = () => {
             <h4 className="text-lg font-semibold mb-4">Enlaces Rápidos</h4>
             <ul className="space-y-2">
               <li>
-                <Link to="/" className="text-slate-300 hover:text-white transition-colors duration-200">
+                <Link to="/web" className="text-slate-300 hover:text-white transition-colors duration-200">
                   Inicio
                 </Link>
               </li>
               <li>
-                <Link to="/sobre-nosotros" className="text-slate-300 hover:text-white transition-colors duration-200">
+                <Link to="/web/sobre-nosotros" className="text-slate-300 hover:text-white transition-colors duration-200">
                   Sobre Nosotros
                 </Link>
               </li>
               <li>
-                <Link to="/servicios" className="text-slate-300 hover:text-white transition-colors duration-200">
+                <Link to="/web/servicios" className="text-slate-300 hover:text-white transition-colors duration-200">
                   Servicios
                 </Link>
               </li>
               <li>
-                <Link to="/contacto" className="text-slate-300 hover:text-white transition-colors duration-200">
+                <Link to="/web/contacto" className="text-slate-300 hover:text-white transition-colors duration-200">
                   Contacto
                 </Link>
               </li>

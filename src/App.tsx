@@ -18,12 +18,34 @@ import UsuarioDetalle from './pages/admin/UsuarioDetalle';
 import Agenda from './pages/admin/Agenda';
 import ScrollToTop from './components/common/ScrollToTop';
 
+/** Sitio web público (pausado): sigue disponible bajo /web/* */
+const PublicSite = () => (
+  <>
+    <Navbar />
+    <main>
+      <Routes>
+        <Route index element={<Home />} />
+        <Route path="sobre-nosotros" element={<About />} />
+        <Route path="servicios" element={<Services />} />
+        <Route path="servicios/:serviceId" element={<ServiceDetail />} />
+        <Route path="blog" element={<Blog />} />
+        <Route path="contacto" element={<Contact />} />
+        <Route path="*" element={<Navigate to="/web" replace />} />
+      </Routes>
+    </main>
+    <Footer />
+  </>
+);
+
 function App() {
   return (
     <Router>
       <ScrollToTop />
       <div className="min-h-screen bg-white">
         <Routes>
+          {/* Entrada principal → panel admin */}
+          <Route path="/" element={<Navigate to="/admin" replace />} />
+
           <Route path="/admin" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<Dashboard />} />
           <Route path="/admin/usuarios" element={<Usuarios />} />
@@ -38,25 +60,17 @@ function App() {
           <Route path="/portal/proceso" element={<Navigate to="/portal/tramites" replace />} />
           <Route path="/portal/proceso/:id" element={<Navigate to="/portal" replace />} />
 
-          <Route
-            path="/*"
-            element={
-              <>
-                <Navbar />
-                <main>
-                  <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/sobre-nosotros" element={<About />} />
-                    <Route path="/servicios" element={<Services />} />
-                    <Route path="/servicios/:serviceId" element={<ServiceDetail />} />
-                    <Route path="/blog" element={<Blog />} />
-                    <Route path="/contacto" element={<Contact />} />
-                  </Routes>
-                </main>
-                <Footer />
-              </>
-            }
-          />
+          {/* Web marketing conservada, no es la entrada */}
+          <Route path="/web/*" element={<PublicSite />} />
+
+          {/* Rutas legacy de la web → admin (por ahora no las usamos) */}
+          <Route path="/sobre-nosotros" element={<Navigate to="/admin" replace />} />
+          <Route path="/servicios" element={<Navigate to="/admin" replace />} />
+          <Route path="/servicios/:serviceId" element={<Navigate to="/admin" replace />} />
+          <Route path="/blog" element={<Navigate to="/admin" replace />} />
+          <Route path="/contacto" element={<Navigate to="/admin" replace />} />
+
+          <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
       </div>
     </Router>

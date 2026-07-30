@@ -81,10 +81,8 @@ const AdminLogin = () => {
 
           <AdminLoginForm onLogin={handleLogin} />
 
-          <div className="text-center">
-            <a href="/" className="text-sm text-white hover:text-blue-200">
-              ← Volver al sitio web
-            </a>
+          <div className="text-center text-xs text-blue-200/70">
+            Prosejurix Hub · acceso del equipo
           </div>
         </div>
       </div>
