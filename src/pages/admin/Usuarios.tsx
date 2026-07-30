@@ -28,10 +28,12 @@ import { countToday, todayIso } from '../../lib/agendaItems';
 import { useAgenda } from '../../hooks/useAgenda';
 import { useNotifications } from '../../components/common/NotificationProvider';
 import { useConfirm } from '../../components/common/ConfirmProvider';
+import { getStaffSession, logoutStaff } from '../../lib/staffSession';
 
 const Usuarios = () => {
   const navigate = useNavigate();
   const { usuarios, isLoaded, stats, source, createUsuario, deleteUsuario } = useUsuarios();
+  const session = getStaffSession();
   const { allItems } = useAgenda({ mode: 'day', day: todayIso() });
   const { notify } = useNotifications();
   const { confirm } = useConfirm();
@@ -85,7 +87,10 @@ const Usuarios = () => {
               </p>
               <h1 className="mt-2 text-2xl font-bold sm:text-3xl">Usuarios y trámites</h1>
               <p className="mt-2 max-w-xl text-sm text-blue-100/80">
-                El eje del panel es el usuario. Cada uno tiene un trámite con etapas del diagrama operativo.
+                {session
+                  ? `Sesión: ${session.nombre}. `
+                  : ''}
+                El eje del panel es el usuario. Agenda unifica novedades, recordatorios y tareas.
               </p>
             </div>
             <div className="hidden gap-2 sm:flex">
@@ -105,7 +110,10 @@ const Usuarios = () => {
               <Button
                 variant="outline"
                 className="border-white/30 bg-white/10 text-white hover:bg-white/20"
-                onClick={() => navigate('/')}
+                onClick={() => {
+                  logoutStaff();
+                  navigate('/admin');
+                }}
               >
                 <LogOut className="mr-2 h-4 w-4" />
                 Salir
