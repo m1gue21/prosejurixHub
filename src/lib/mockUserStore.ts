@@ -2,6 +2,7 @@ import { buildSeedFromMocks } from '../data/seedUsuariosTramites';
 import { createInitialEtapas, getEtapaLabel } from '../data/tramitesCatalog';
 import { computeCaducidadFromAccidente } from './caducidad';
 import { AgendaNota } from '../types/agenda';
+import { Tarea } from '../types/tarea';
 import {
   ChecklistItem,
   Comunicacion,
@@ -15,7 +16,7 @@ import {
 import { upsertChecklistArchivo } from './documentHelpers';
 
 const STORAGE_KEY = 'prosejurix_mock_usuarios_tramites';
-const SEED_VERSION = '2026-07-22-tramites-v8-manizales-csv';
+const SEED_VERSION = '2026-07-30-tramites-v9-tareas';
 const VERSION_KEY = 'prosejurix_mock_usuarios_seed_version';
 
 interface StoreShape {
@@ -23,6 +24,7 @@ interface StoreShape {
   tramites: Tramite[];
   comunicaciones: Comunicacion[];
   notasAgenda: AgendaNota[];
+  tareas: Tarea[];
 }
 
 const normalizeStore = (parsed: Partial<StoreShape>): StoreShape | null => {
@@ -31,7 +33,8 @@ const normalizeStore = (parsed: Partial<StoreShape>): StoreShape | null => {
     usuarios: parsed.usuarios,
     tramites: parsed.tramites,
     comunicaciones: Array.isArray(parsed.comunicaciones) ? parsed.comunicaciones : [],
-    notasAgenda: Array.isArray(parsed.notasAgenda) ? parsed.notasAgenda : []
+    notasAgenda: Array.isArray(parsed.notasAgenda) ? parsed.notasAgenda : [],
+    tareas: Array.isArray(parsed.tareas) ? parsed.tareas : []
   };
 };
 
@@ -55,7 +58,11 @@ const readStore = (): StoreShape => {
       const normalized = normalizeStore(JSON.parse(saved) as Partial<StoreShape>);
       if (normalized) {
         let repaired = normalized;
-        if (normalized.comunicaciones.length === 0 || normalized.notasAgenda.length === 0) {
+        if (
+          normalized.comunicaciones.length === 0 ||
+          normalized.notasAgenda.length === 0 ||
+          normalized.tareas.length === 0
+        ) {
           const seed = buildSeedFromMocks();
           const userIds = new Set(normalized.usuarios.map((u) => u.id));
           repaired = {
@@ -67,7 +74,8 @@ const readStore = (): StoreShape => {
             notasAgenda:
               normalized.notasAgenda.length > 0
                 ? normalized.notasAgenda
-                : seed.notasAgenda.filter((n) => !n.usuarioId || userIds.has(n.usuarioId))
+                : seed.notasAgenda.filter((n) => !n.usuarioId || userIds.has(n.usuarioId)),
+            tareas: normalized.tareas.length > 0 ? normalized.tareas : seed.tareas
           };
           writeStore(repaired);
         }
@@ -113,6 +121,14 @@ const nextNotaId = (notas: AgendaNota[]): string => {
     return Number.isNaN(num) ? acc : Math.max(acc, num);
   }, 0);
   return `n-${max + 1}`;
+};
+
+const nextTareaId = (tareas: Tarea[]): string => {
+  const max = tareas.reduce((acc, t) => {
+    const num = Number(String(t.id).replace(/\D/g, ''));
+    return Number.isNaN(num) ? acc : Math.max(acc, num);
+  }, 0);
+  return `task-${max + 1}`;
 };
 
 const attachTramites = (usuario: Usuario, tramites: Tramite[]): UsuarioConTramites => ({
@@ -263,6 +279,67 @@ export const mockUserStore = {
     });
   },
 
+  getTareas(): Tarea[] {
+    return [...readStore().tareas].sort((a, b) => {
+      if (a.estado === 'hecha' && b.estado !== 'hecha') return 1;
+      if (a.estado !== 'hecha' && b.estado === 'hecha') return -1;
+      return (b.creadoEn || '').localeCompare(a.creadoEn || '');
+    });
+  },
+
+  createTarea(
+    data: Omit<Tarea, 'id' | 'creadoEn' | 'estado' | 'origen'> & {
+      id?: string;
+      estado?: Tarea['estado'];
+      origen?: Tarea['origen'];
+      creadoEn?: string;
+    }
+  ): Tarea {
+    const store = readStore();
+    const created: Tarea = {
+      id: data.id || nextTareaId(store.tareas),
+      titulo: data.titulo,
+      detalle: data.detalle,
+      estado: data.estado || 'pendiente',
+      asignadoA: data.asignadoA,
+      usuarioId: data.usuarioId,
+      tramiteId: data.tramiteId,
+      fechaLimite: data.fechaLimite,
+      prioridad: data.prioridad,
+      origen: data.origen || 'manual',
+      origenKey: data.origenKey,
+      creadoPor: data.creadoPor,
+      creadoEn: data.creadoEn || new Date().toISOString(),
+      actualizadoEn: new Date().toISOString()
+    };
+    writeStore({ ...store, tareas: [...store.tareas, created] });
+    return created;
+  },
+
+  updateTarea(id: string, updates: Partial<Tarea>): Tarea {
+    const store = readStore();
+    const index = store.tareas.findIndex((t) => t.id === id);
+    if (index === -1) throw new Error(`Tarea ${id} no encontrada`);
+    const updated = {
+      ...store.tareas[index],
+      ...updates,
+      id,
+      actualizadoEn: new Date().toISOString()
+    };
+    const tareas = [...store.tareas];
+    tareas[index] = updated;
+    writeStore({ ...store, tareas });
+    return updated;
+  },
+
+  deleteTarea(id: string): void {
+    const store = readStore();
+    writeStore({
+      ...store,
+      tareas: store.tareas.filter((t) => t.id !== id)
+    });
+  },
+
   createUsuario(
     data: Omit<Usuario, 'id'> & {
       tituloTramite?: string;
@@ -313,7 +390,8 @@ export const mockUserStore = {
       usuarios: [...store.usuarios, usuario],
       tramites: [...store.tramites, tramite],
       comunicaciones: store.comunicaciones,
-      notasAgenda: store.notasAgenda
+      notasAgenda: store.notasAgenda,
+      tareas: store.tareas
     });
 
     return attachTramites(usuario, [tramite]);
@@ -507,7 +585,8 @@ export const mockUserStore = {
       usuarios: store.usuarios.filter((u) => u.id !== id),
       tramites: store.tramites.filter((t) => t.usuarioId !== id),
       comunicaciones: store.comunicaciones.filter((c) => c.usuarioId !== id),
-      notasAgenda: store.notasAgenda.filter((n) => n.usuarioId !== id)
+      notasAgenda: store.notasAgenda.filter((n) => n.usuarioId !== id),
+      tareas: store.tareas.filter((t) => t.usuarioId !== id)
     });
   },
 

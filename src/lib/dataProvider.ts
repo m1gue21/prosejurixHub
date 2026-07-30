@@ -2,6 +2,7 @@ import { mockUserStore } from './mockUserStore';
 import { usuariosRepo } from './repositories/usuariosRepo';
 import { supabase } from './supabase';
 import { AgendaNota } from '../types/agenda';
+import { Tarea } from '../types/tarea';
 import {
   ChecklistItem,
   Comunicacion,
@@ -48,18 +49,31 @@ type StoreLike = {
     updates: Partial<AgendaNota>
   ) => AgendaNota | Promise<AgendaNota>;
   deleteNotaAgenda: (id: string) => void | Promise<void>;
+  getTareas: () => Tarea[] | Promise<Tarea[]>;
+  createTarea: (
+    data: Omit<Tarea, 'id' | 'creadoEn' | 'estado' | 'origen'> & {
+      id?: string;
+      estado?: Tarea['estado'];
+      origen?: Tarea['origen'];
+      creadoEn?: string;
+    }
+  ) => Tarea | Promise<Tarea>;
+  updateTarea: (id: string, updates: Partial<Tarea>) => Tarea | Promise<Tarea>;
+  deleteTarea: (id: string) => void | Promise<void>;
   getSnapshot: () =>
     | {
         usuarios: Usuario[];
         tramites: Tramite[];
         comunicaciones: Comunicacion[];
         notasAgenda: AgendaNota[];
+        tareas: Tarea[];
       }
     | Promise<{
         usuarios: Usuario[];
         tramites: Tramite[];
         comunicaciones: Comunicacion[];
         notasAgenda: AgendaNota[];
+        tareas: Tarea[];
       }>;
   createUsuario: (
     data: Parameters<typeof mockUserStore.createUsuario>[0]

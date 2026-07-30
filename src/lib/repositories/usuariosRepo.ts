@@ -2,6 +2,7 @@ import { supabase } from '../supabase';
 import { createInitialEtapas } from '../../data/tramitesCatalog';
 import { computeCaducidadFromAccidente } from '../caducidad';
 import { AgendaNota } from '../../types/agenda';
+import { Tarea, TareaAsignado, TareaEstado, TareaOrigen } from '../../types/tarea';
 import {
   ChecklistItem,
   Comunicacion,
@@ -13,6 +14,40 @@ import {
   UsuarioConTramites
 } from '../../types/tramite';
 import { upsertChecklistArchivo } from '../documentHelpers';
+
+const mapTarea = (row: Record<string, unknown>): Tarea => ({
+  id: String(row.id),
+  titulo: String(row.titulo),
+  detalle: (row.detalle as string) || undefined,
+  estado: row.estado as TareaEstado,
+  asignadoA: row.asignado_a as TareaAsignado,
+  usuarioId: row.usuario_id != null ? Number(row.usuario_id) : undefined,
+  tramiteId: row.tramite_id ? String(row.tramite_id) : undefined,
+  fechaLimite: row.fecha_limite ? String(row.fecha_limite).slice(0, 10) : undefined,
+  prioridad: (row.prioridad as Tarea['prioridad']) || undefined,
+  origen: (row.origen as TareaOrigen) || 'manual',
+  origenKey: (row.origen_key as string) || undefined,
+  creadoPor: (row.creado_por as string) || undefined,
+  creadoEn: String(row.creado_en),
+  actualizadoEn: row.actualizado_en ? String(row.actualizado_en) : undefined
+});
+
+const tareaToRow = (t: Tarea) => ({
+  id: t.id,
+  titulo: t.titulo,
+  detalle: t.detalle ?? null,
+  estado: t.estado,
+  asignado_a: t.asignadoA,
+  usuario_id: t.usuarioId ?? null,
+  tramite_id: t.tramiteId ?? null,
+  fecha_limite: t.fechaLimite ?? null,
+  prioridad: t.prioridad ?? null,
+  origen: t.origen,
+  origen_key: t.origenKey ?? null,
+  creado_por: t.creadoPor ?? null,
+  creado_en: t.creadoEn,
+  actualizado_en: t.actualizadoEn || new Date().toISOString()
+});
 
 const requireClient = () => {
   if (!supabase) throw new Error('Supabase no configurado');
@@ -291,9 +326,70 @@ export const usuariosRepo = {
     if (error) throw error;
   },
 
+  async getTareas(): Promise<Tarea[]> {
+    const client = requireClient();
+    const { data, error } = await client.from('tareas').select('*').order('creado_en', {
+      ascending: false
+    });
+    if (error) throw error;
+    return (data || []).map((row) => mapTarea(row));
+  },
+
+  async createTarea(
+    data: Omit<Tarea, 'id' | 'creadoEn' | 'estado' | 'origen'> & {
+      id?: string;
+      estado?: TareaEstado;
+      origen?: TareaOrigen;
+      creadoEn?: string;
+    }
+  ): Promise<Tarea> {
+    const client = requireClient();
+    const created: Tarea = {
+      id: data.id || `task-${Date.now()}`,
+      titulo: data.titulo,
+      detalle: data.detalle,
+      estado: data.estado || 'pendiente',
+      asignadoA: data.asignadoA,
+      usuarioId: data.usuarioId,
+      tramiteId: data.tramiteId,
+      fechaLimite: data.fechaLimite,
+      prioridad: data.prioridad,
+      origen: data.origen || 'manual',
+      origenKey: data.origenKey,
+      creadoPor: data.creadoPor,
+      creadoEn: data.creadoEn || new Date().toISOString(),
+      actualizadoEn: new Date().toISOString()
+    };
+    const { error } = await client.from('tareas').insert(tareaToRow(created));
+    if (error) throw error;
+    return created;
+  },
+
+  async updateTarea(id: string, updates: Partial<Tarea>): Promise<Tarea> {
+    const client = requireClient();
+    const current = (await this.getTareas()).find((t) => t.id === id);
+    if (!current) throw new Error(`Tarea ${id} no encontrada`);
+    const merged: Tarea = {
+      ...current,
+      ...updates,
+      id,
+      actualizadoEn: new Date().toISOString()
+    };
+    const { error } = await client.from('tareas').update(tareaToRow(merged)).eq('id', id);
+    if (error) throw error;
+    return merged;
+  },
+
+  async deleteTarea(id: string): Promise<void> {
+    const client = requireClient();
+    const { error } = await client.from('tareas').delete().eq('id', id);
+    if (error) throw error;
+  },
+
   async getSnapshot() {
     const users = await this.getAll();
     const notasAgenda = await this.getNotasAgenda();
+    const tareas = await this.getTareas();
     const comunicaciones = (
       await Promise.all(users.map((u) => this.getComunicaciones(u.id)))
     ).flat();
@@ -301,7 +397,8 @@ export const usuariosRepo = {
       usuarios: users.map(({ tramites: _t, ...u }) => u),
       tramites: users.flatMap((u) => u.tramites),
       comunicaciones,
-      notasAgenda
+      notasAgenda,
+      tareas
     };
   },
 
