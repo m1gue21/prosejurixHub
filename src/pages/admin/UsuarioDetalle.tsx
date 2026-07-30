@@ -143,6 +143,7 @@ const UsuarioDetalle = () => {
                 navigate('/admin/agenda', {
                   state: {
                     openCreate: true,
+                    tab: 'tareas',
                     usuarioId: usuario.id,
                     tramiteId: tramite.id
                   }
@@ -150,7 +151,24 @@ const UsuarioDetalle = () => {
               }
             >
               <BellPlus className="mr-2 h-4 w-4" />
-              Agregar recordatorio
+              Nueva tarea
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={() =>
+                navigate('/admin/agenda', {
+                  state: {
+                    openCreate: true,
+                    tab: 'recordatorios',
+                    usuarioId: usuario.id,
+                    tramiteId: tramite.id
+                  }
+                })
+              }
+            >
+              Recordatorio
             </Button>
             <Button
               variant="outline"
