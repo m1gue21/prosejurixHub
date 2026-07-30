@@ -113,14 +113,14 @@ const TareasKanban = ({
   };
 
   return (
-    <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4">
+    <div className="flex w-full min-w-0 flex-nowrap gap-3 overflow-x-auto pb-2">
       {COLUMNS.map((col) => {
         const items = grouped[col.id];
         const isOver = overColumn === col.id;
         return (
           <section
             key={col.id}
-            className={`flex min-w-[260px] flex-1 flex-col rounded-2xl border p-3 sm:min-w-0 ${col.accent} ${
+            className={`flex min-h-[50vh] min-w-[240px] flex-1 basis-0 flex-col rounded-2xl border p-3 ${col.accent} ${
               isOver ? 'ring-2 ring-blue-400' : ''
             }`}
             onDragOver={(e) => {

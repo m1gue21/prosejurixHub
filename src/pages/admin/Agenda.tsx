@@ -370,7 +370,13 @@ const Agenda = () => {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl space-y-4 safe-px py-4 sm:space-y-5 sm:px-6 sm:py-6">
+      <main
+        className={`mx-auto space-y-4 safe-px py-4 sm:space-y-5 sm:px-6 sm:py-6 ${
+          tab === 'tareas' && tareasVista === 'tabla'
+            ? 'w-full max-w-none'
+            : 'max-w-5xl'
+        }`}
+      >
         <div className="grid grid-cols-3 gap-2">
           {(
             [
