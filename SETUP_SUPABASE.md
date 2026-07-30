@@ -24,6 +24,19 @@ VITE_DATA_SOURCE=mock
 
 Reinicia `npm run dev` tras cambiar el `.env`.
 
+## Tareas del equipo (Agenda)
+
+1. Ejecuta también `supabase/migrations/002_tareas.sql`.
+2. Importa el Excel exportado a CSV:
+
+   ```bash
+   npm run import:tareas:supabase
+   ```
+
+3. Login admin por perfil: `giovanni` | `leidy` | `salome` (contraseña `prosejurix2024`).
+   Por ahora todos ven lo mismo; `role` queda listo para permisos futuros.
+4. En `/admin/agenda`: pestañas **Tareas / Recordatorios / Novedades**.
+
 ## Cutover desde Google Sheets
 
 1. En el SQL Editor de Supabase, ejecuta `supabase/migrations/001_usuarios_tramites.sql`.
