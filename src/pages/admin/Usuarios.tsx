@@ -47,7 +47,7 @@ const Usuarios = () => {
   const { notify } = useNotifications();
   const { confirm } = useConfirm();
   const [search, setSearch] = useState('');
-  const [sortMode, setSortMode] = useState<SortMode>('caducidad');
+  const [sortMode, setSortMode] = useState<SortMode>('nombre_asc');
   const [showModal, setShowModal] = useState(false);
 
   const agendaHoy = useMemo(() => countToday(allItems), [allItems]);
@@ -199,9 +199,9 @@ const Usuarios = () => {
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                   aria-label="Ordenar por"
                 >
-                  <option value="caducidad">Caducidad (urgencia)</option>
                   <option value="nombre_asc">Nombre A → Z</option>
                   <option value="nombre_desc">Nombre Z → A</option>
+                  <option value="caducidad">Caducidad (urgencia)</option>
                 </select>
               </label>
               <div className="min-w-0 flex-1 sm:max-w-sm">
