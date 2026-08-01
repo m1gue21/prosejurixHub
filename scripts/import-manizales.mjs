@@ -1,13 +1,13 @@
 /**
- * Importa CONTROL + ACTIVOS a seed local y opcionalmente a Supabase.
+ * Importa SOLO la hoja ACTIVOS (sin CONTROL) a JSON local y opcionalmente Supabase.
  *
  * Uso:
  *   node scripts/import-manizales.mjs
- *   node scripts/import-manizales.mjs --supabase
+ *   node scripts/import-manizales.mjs --supabase --replace
  *
- * Requiere para --supabase:
- *   VITE_SUPABASE_URL
- *   SUPABASE_SERVICE_ROLE_KEY  (o VITE_SUPABASE_ANON_KEY en piloto Free)
+ * --replace borra usuarios/trámites/etapas previos y deja solo ACTIVOS.
+ *
+ * Fuente: ACTIVOS_ONLY.csv (export de activos.xlsx → hoja ACTIVOS)
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -17,11 +17,7 @@ import { createClient } from '@supabase/supabase-js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
 
-const CONTROL = resolve(
-  root,
-  'actualizadoPROCESOS MANIZALES.xlsx - CONTROL PROCESOS ACCIDENTES(1).csv'
-);
-const ACTIVOS = resolve(root, 'actualizadoPROCESOS MANIZALES.xlsx - ACTIVOS(1).csv');
+const ACTIVOS = resolve(root, 'ACTIVOS_ONLY.csv');
 const OUT_JSON = resolve(root, 'src/data/generatedManizalesSeed.json');
 
 // Duplicamos la lógica de parse mínimo en el script para no depender de TS runtime.
@@ -179,39 +175,13 @@ const prefer = (a, b) => {
   return (b || '').trim() || null;
 };
 
-if (!existsSync(CONTROL) || !existsSync(ACTIVOS)) {
-  console.error('No se encontraron los CSV actualizados en la raíz del repo.');
+if (!existsSync(ACTIVOS)) {
+  console.error('Falta ACTIVOS_ONLY.csv en la raíz (export de activos.xlsx → hoja ACTIVOS).');
   process.exit(1);
 }
 
-const control = parseCsv(readFileSync(CONTROL, 'utf8')).slice(1).map(parseControl).filter(Boolean);
 const activos = parseCsv(readFileSync(ACTIVOS, 'utf8')).slice(1).map(parseActivos).filter(Boolean);
-
-const map = new Map();
-for (const r of control) map.set(keyOf(r), { ...r, source: 'control' });
-let merged = 0;
-let soloActivos = 0;
-for (const r of activos) {
-  const k = keyOf(r);
-  const prev = map.get(k);
-  if (prev) {
-    map.set(k, {
-      ...prev,
-      ...r,
-      nombre: prefer(r.nombre, prev.nombre),
-      cedula: prefer(r.cedula, prev.cedula),
-      aseguradora: prefer(r.aseguradora, prev.aseguradora),
-      actuacion: prefer(r.actuacion, prev.actuacion),
-      source: 'merged'
-    });
-    merged++;
-  } else {
-    map.set(k, { ...r, source: 'activos' });
-    soloActivos++;
-  }
-}
-
-const rows = [...map.values()];
+const rows = activos.map((r) => ({ ...r, source: 'activos' }));
 const byCed = new Map();
 for (const r of rows) {
   const ced = normalizeCedula(r.cedula) || `n:${(r.nombre || '').toLowerCase()}`;
@@ -254,90 +224,91 @@ const ETAPA_ORDER = [
   'proceso_judicial'
 ];
 
+/** Checklist alineado con src/data/tramitesCatalog.ts */
+const CHECKLIST_TEMPLATES = {
+  vinculacion: [
+    ['datos', 'Datos del cliente', false],
+    ['poderes', 'Poderes firmados', true],
+    ['caso_entregado', 'Caso entregado', false]
+  ],
+  liberacion_vehiculos: [
+    ['cedulas', 'Copia de cédulas', true],
+    ['soat', 'SOAT', true],
+    ['tecno', 'Tecnomecánica', true]
+  ],
+  accion_penal: [
+    ['querella', 'Querella radicada', true],
+    ['poder_penal', 'Poder radicado', true],
+    ['conciliaciones', 'Asistencia a conciliaciones', false],
+    ['proceso_penal', 'Asistencia a proceso penal', false],
+    ['expediente', 'Expediente penal solicitado', true]
+  ],
+  medico_clinico: [
+    ['historia_clinica', 'Historia clínica', true],
+    ['incapacidad', 'Incapacidades', true],
+    ['conceptos', 'Conceptos de especialidades', true],
+    ['diagnosticos', 'Diagnósticos', true],
+    ['alta', 'Alta médica', true]
+  ],
+  medico_legal: [
+    ['oficios', 'Oficios petitorios', true],
+    ['dictamenes', 'Dictámenes', true],
+    ['alta_legal', 'Alta de valoración médico legal', false]
+  ],
+  reclamacion_aseguradora: [
+    ['radicacion', 'Reclamación radicada', true],
+    ['docs_adicionales', 'Documentos adicionales', true],
+    ['negociacion', 'Negociación adelantada', false],
+    ['cierre', 'Cierre de reclamación', false]
+  ],
+  medico_laboral: [
+    ['cita', 'Valoración agendada', false],
+    ['hc_completa', 'Historia clínica complementada', true],
+    ['dictamen_pcl', 'Dictamen PCL', true]
+  ],
+  conciliacion_prejudicial: [
+    ['solicitud', 'Solicitud radicada', true],
+    ['diligencia', 'Diligencia realizada', false],
+    ['acta', 'Acta de acuerdo / no acuerdo', true]
+  ],
+  proceso_judicial: [
+    ['demanda', 'Demanda radicada', true],
+    ['admision', 'Admisión / subsanación', true],
+    ['notificaciones', 'Notificaciones', true],
+    ['sentencia', 'Sentencia', true]
+  ]
+};
+
+const makeArchivo = (tramiteId, key, nombre, url) => ({
+  id: `doc-${tramiteId}-${key}`,
+  nombre,
+  mimeType: 'application/pdf',
+  size: 0,
+  fechaAnadido: new Date().toISOString(),
+  urlExterna: url,
+  kind: 'archivo'
+});
+
 const buildEtapasForTramite = (t) => {
   const actual = t.etapa_actual;
   const idx = ETAPA_ORDER.indexOf(actual);
   const today = t.fecha_accidente || t.fecha_ingreso || new Date().toISOString().slice(0, 10);
-  const docByEtapa = {
-    accion_penal: t._docs.denuncia
-      ? {
-          id: 'querella',
-          label: 'Querella / denuncia',
-          completado: true,
-          requiereDocumento: true,
-          archivo: {
-            id: `doc-${t.id}-den`,
-            nombre: 'denuncia.pdf',
-            mimeType: 'application/pdf',
-            size: 0,
-            fechaAnadido: new Date().toISOString(),
-            urlExterna: t._docs.denuncia
-          }
-        }
+
+  const driveByItem = {
+    querella: t._docs.denuncia
+      ? makeArchivo(t.id, 'den', 'Denuncia (Drive)', t._docs.denuncia)
       : null,
-    medico_legal: t._docs.dictamen
-      ? {
-          id: 'dictamenes',
-          label: 'Dictámenes',
-          completado: true,
-          requiereDocumento: true,
-          archivo: {
-            id: `doc-${t.id}-dict`,
-            nombre: 'dictamen.pdf',
-            mimeType: 'application/pdf',
-            size: 0,
-            fechaAnadido: new Date().toISOString(),
-            urlExterna: t._docs.dictamen
-          }
-        }
+    dictamenes: t._docs.dictamen
+      ? makeArchivo(t.id, 'dict', 'Dictamen (Drive)', t._docs.dictamen)
       : null,
-    reclamacion_aseguradora: t._docs.reclamacion
-      ? {
-          id: 'reclamacion',
-          label: 'Reclamación',
-          completado: true,
-          requiereDocumento: true,
-          archivo: {
-            id: `doc-${t.id}-rec`,
-            nombre: 'reclamacion.pdf',
-            mimeType: 'application/pdf',
-            size: 0,
-            fechaAnadido: new Date().toISOString(),
-            urlExterna: t._docs.reclamacion
-          }
-        }
+    radicacion: t._docs.reclamacion
+      ? makeArchivo(t.id, 'rec', 'Reclamación (Drive)', t._docs.reclamacion)
       : null,
-    conciliacion_prejudicial: t._docs.conciliacion
-      ? {
-          id: 'acta',
-          label: 'Acta de conciliación',
-          completado: true,
-          requiereDocumento: true,
-          archivo: {
-            id: `doc-${t.id}-conc`,
-            nombre: 'conciliacion.pdf',
-            mimeType: 'application/pdf',
-            size: 0,
-            fechaAnadido: new Date().toISOString(),
-            urlExterna: t._docs.conciliacion
-          }
-        }
+    acta: t._docs.conciliacion
+      ? makeArchivo(t.id, 'conc', 'Conciliación (Drive)', t._docs.conciliacion)
       : null,
-    proceso_judicial: t._docs.demanda
-      ? {
-          id: 'demanda',
-          label: 'Demanda',
-          completado: true,
-          requiereDocumento: true,
-          archivo: {
-            id: `doc-${t.id}-dem`,
-            nombre: 'demanda.pdf',
-            mimeType: 'application/pdf',
-            size: 0,
-            fechaAnadido: new Date().toISOString(),
-            urlExterna: t._docs.demanda
-          }
-        }
+    demanda: t._docs.demanda
+      ? makeArchivo(t.id, 'dem', 'Demanda (Drive)', t._docs.demanda)
       : null
   };
 
@@ -356,9 +327,19 @@ const buildEtapasForTramite = (t) => {
       estado = 'en_curso';
       fecha_inicio = today;
     }
-    const checklist = [];
-    const doc = docByEtapa[tipo];
-    if (doc) checklist.push(doc);
+
+    const template = CHECKLIST_TEMPLATES[tipo] || [];
+    const checklist = template.map(([id, label, requiereDocumento]) => {
+      const archivo = driveByItem[id] || null;
+      return {
+        id,
+        label,
+        completado: Boolean(archivo) || (tipo === 'vinculacion'),
+        requiereDocumento,
+        ...(archivo ? { archivo } : {})
+      };
+    });
+
     return {
       id: `${t.id}-${tipo}`,
       tramite_id: t.id,
@@ -443,10 +424,8 @@ const etapaCounts = tramites.reduce((acc, t) => {
 }, {});
 
 const summary = {
-  control: control.length,
+  source: 'ACTIVOS_ONLY',
   activos: activos.length,
-  merged,
-  soloActivos,
   usuarios: usuarios.length,
   tramites: tramites.length,
   etapas: etapaCounts
@@ -481,8 +460,9 @@ const loadEnvFile = () => {
 };
 
 const pushSupabase = process.argv.includes('--supabase');
+const replaceAll = process.argv.includes('--replace');
 if (!pushSupabase) {
-  console.log('Listo (solo JSON). Para subir a Supabase: npm run import:manizales:supabase');
+  console.log('Listo (solo JSON). Para Supabase: npm run import:activos:supabase');
   process.exit(0);
 }
 
@@ -496,6 +476,30 @@ if (!url || !key) {
 }
 
 const supabase = createClient(url, key);
+
+if (replaceAll) {
+  console.log('--replace: limpiando etapas, trámites, usuarios y tareas excel…');
+  const delEtapas = await supabase.from('etapas').delete().neq('id', '');
+  if (delEtapas.error) {
+    console.error('Error borrando etapas:', delEtapas.error);
+    process.exit(1);
+  }
+  const delTramites = await supabase.from('tramites').delete().neq('id', '');
+  if (delTramites.error) {
+    console.error('Error borrando tramites:', delTramites.error);
+    process.exit(1);
+  }
+  const delTareas = await supabase.from('tareas').delete().eq('origen', 'excel');
+  if (delTareas.error) {
+    console.error('Error borrando tareas excel:', delTareas.error);
+    process.exit(1);
+  }
+  const delUsers = await supabase.from('usuarios').delete().neq('id', 0);
+  if (delUsers.error) {
+    console.error('Error borrando usuarios:', delUsers.error);
+    process.exit(1);
+  }
+}
 
 const { error: uErr } = await supabase.from('usuarios').upsert(
   usuarios.map(({ id, ...rest }) => ({ id, ...rest })),

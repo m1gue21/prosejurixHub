@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "import:manizales": "node scripts/import-manizales.mjs",
     "import:manizales:supabase": "node scripts/import-manizales.mjs --supabase",
+    "import:activos:supabase": "node scripts/import-manizales.mjs --supabase --replace",
     "import:tareas": "node scripts/import-tareas.mjs",
     "import:tareas:supabase": "node scripts/import-tareas.mjs --supabase",
     "db:apply:tareas": "node scripts/apply-sql.mjs supabase/migrations/002_tareas.sql"

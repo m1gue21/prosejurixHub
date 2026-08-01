@@ -1,8 +1,7 @@
 /// <reference types="vite/client" />
-import controlCsv from '../../actualizadoPROCESOS MANIZALES.xlsx - CONTROL PROCESOS ACCIDENTES(1).csv?raw';
-import activosCsv from '../../actualizadoPROCESOS MANIZALES.xlsx - ACTIVOS(1).csv?raw';
+import activosCsv from '../../ACTIVOS_ONLY.csv?raw';
 import tareasCsv from '../../TAREAS_PENDIENTES.csv?raw';
-import { mergeManizalesCsvs } from '../lib/csvManizales';
+import { seedFromActivosCsv } from '../lib/csvManizales';
 import {
   inferAsignadoFromText,
   normalizePersonName,
@@ -14,7 +13,7 @@ import { Tarea } from '../types/tarea';
 
 export interface SeedData {
   usuarios: Usuario[];
-  tramites: ReturnType<typeof mergeManizalesCsvs>['tramites'];
+  tramites: ReturnType<typeof seedFromActivosCsv>['tramites'];
   comunicaciones: Comunicacion[];
   notasAgenda: AgendaNota[];
   tareas: Tarea[];
@@ -90,6 +89,8 @@ const buildTareasFromCsv = (usuarios: Usuario[], tramites: SeedData['tramites'])
     const alcance = (cols[4] || '').trim();
     if (!nombre || !alcance) continue;
     const usuarioId = byName.get(normalizePersonName(nombre));
+    // Solo tareas de clientes que están en ACTIVOS
+    if (usuarioId == null) continue;
     const asignadoA = inferAsignadoFromText(alcance);
     tareas.push({
       id: `task-excel-${n++}`,
@@ -100,7 +101,7 @@ const buildTareasFromCsv = (usuarios: Usuario[], tramites: SeedData['tramites'])
       estado: 'pendiente',
       asignadoA,
       usuarioId,
-      tramiteId: usuarioId != null ? principalByUser.get(usuarioId) : undefined,
+      tramiteId: principalByUser.get(usuarioId),
       origen: 'excel',
       origenKey: `excel|${normalizePersonName(nombre)}|${normalizePersonName(alcance).slice(0, 80)}`,
       creadoPor: 'import-excel',
@@ -111,9 +112,9 @@ const buildTareasFromCsv = (usuarios: Usuario[], tramites: SeedData['tramites'])
 };
 
 export const buildSeedFromMocks = (): SeedData => {
-  const { usuarios, tramites, stats } = mergeManizalesCsvs(controlCsv, activosCsv);
+  const { usuarios, tramites, stats } = seedFromActivosCsv(activosCsv);
   if (typeof console !== 'undefined') {
-    console.info('[seed Manizales]', stats);
+    console.info('[seed ACTIVOS only]', stats);
   }
 
   const today = new Date();
@@ -129,7 +130,7 @@ export const buildSeedFromMocks = (): SeedData => {
 
   const comunicaciones: Comunicacion[] = [];
   const notasAgenda: AgendaNota[] = [];
-  const sample = usuarios.slice(0, 12);
+  const sample = usuarios.slice(0, 8);
 
   sample.forEach((u, i) => {
     const tramite = tramites.find((t) => t.usuarioId === u.id && !t.esCasoAdicional);
@@ -145,19 +146,6 @@ export const buildSeedFromMocks = (): SeedData => {
       registradoPor: 'Asesoría',
       duracionMinutos: 10
     });
-    if (i % 2 === 0) {
-      comunicaciones.push({
-        id: `c-seed-${u.id}-2`,
-        usuarioId: u.id,
-        tramiteId: tramite?.id,
-        tipo: 'mensaje',
-        direccion: 'desde_cliente',
-        fecha: `${offsetDay(-1)}T11:30:00.000Z`,
-        asunto: 'Consulta WhatsApp',
-        contenido: 'Cliente preguntó por el estado de la reclamación.',
-        registradoPor: 'Mesa de entrada'
-      });
-    }
 
     notasAgenda.push({
       id: `n-seed-${u.id}-1`,
@@ -178,7 +166,7 @@ export const buildSeedFromMocks = (): SeedData => {
 
   const tareas = buildTareasFromCsv(usuarios, tramites);
   if (typeof console !== 'undefined') {
-    console.info('[seed Tareas]', { total: tareas.length });
+    console.info('[seed Tareas ACTIVOS]', { total: tareas.length });
   }
 
   return { usuarios, tramites, comunicaciones, notasAgenda, tareas };

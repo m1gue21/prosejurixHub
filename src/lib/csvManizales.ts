@@ -356,19 +356,30 @@ const applyEtapaProgress = (
 };
 
 const attachDriveDocs = (etapas: EtapaTramite[], row: ManizalesRow): EtapaTramite[] => {
+  // IDs alineados con tramitesCatalog
   const docs: { etapa: TipoEtapa; itemId: string; url: string; nombre: string }[] = [];
   if (row.denunciaUrl) {
-    docs.push({ etapa: 'accion_penal', itemId: 'querella', url: row.denunciaUrl, nombre: 'denuncia.pdf' });
+    docs.push({
+      etapa: 'accion_penal',
+      itemId: 'querella',
+      url: row.denunciaUrl,
+      nombre: 'Denuncia (Drive)'
+    });
   }
   if (row.dictamenUrl) {
-    docs.push({ etapa: 'medico_legal', itemId: 'dictamen', url: row.dictamenUrl, nombre: 'dictamen.pdf' });
+    docs.push({
+      etapa: 'medico_legal',
+      itemId: 'dictamenes',
+      url: row.dictamenUrl,
+      nombre: 'Dictamen (Drive)'
+    });
   }
   if (row.reclamacionUrl) {
     docs.push({
       etapa: 'reclamacion_aseguradora',
-      itemId: 'reclamacion',
+      itemId: 'radicacion',
       url: row.reclamacionUrl,
-      nombre: 'reclamacion.pdf'
+      nombre: 'Reclamación (Drive)'
     });
   }
   if (row.conciliacionUrl) {
@@ -376,44 +387,70 @@ const attachDriveDocs = (etapas: EtapaTramite[], row: ManizalesRow): EtapaTramit
       etapa: 'conciliacion_prejudicial',
       itemId: 'acta',
       url: row.conciliacionUrl,
-      nombre: 'conciliacion.pdf'
+      nombre: 'Conciliación (Drive)'
     });
   }
   if (row.demandaUrl) {
-    docs.push({ etapa: 'proceso_judicial', itemId: 'demanda', url: row.demandaUrl, nombre: 'demanda.pdf' });
+    docs.push({
+      etapa: 'proceso_judicial',
+      itemId: 'demanda',
+      url: row.demandaUrl,
+      nombre: 'Demanda (Drive)'
+    });
+  }
+
+  const pendingByEtapa = new Map<TipoEtapa, typeof docs>();
+  for (const d of docs) {
+    const list = pendingByEtapa.get(d.etapa) || [];
+    list.push(d);
+    pendingByEtapa.set(d.etapa, list);
   }
 
   return etapas.map((etapa) => {
-    const matches = docs.filter((d) => d.etapa === etapa.tipo);
-    if (!matches.length) return etapa;
-    return {
-      ...etapa,
-      checklist: etapa.checklist.map((item) => {
-        const doc = matches.find((m) => item.id.includes(m.itemId) || m.itemId.includes(item.id));
-        if (!doc && matches[0] && item.requiereDocumento && !item.archivo) {
-          // attach first drive doc of etapa to first required item without file
-          const first = matches.shift();
-          if (!first) return item;
-          return {
-            ...item,
-            completado: true,
-            archivo: createDocumentoFromUrl(first.nombre, first.url)
-          };
-        }
-        if (!doc) return item;
-        return {
-          ...item,
-          completado: true,
-          archivo: createDocumentoFromUrl(doc.nombre, doc.url)
-        };
-      })
-    };
+    const pending = pendingByEtapa.get(etapa.tipo);
+    if (!pending?.length) return etapa;
+
+    const used = new Set<string>();
+    const checklist = etapa.checklist.map((item) => {
+      const exact = pending.find((m) => m.itemId === item.id && !used.has(m.itemId));
+      const fuzzy =
+        exact ||
+        pending.find(
+          (m) =>
+            !used.has(m.itemId) &&
+            (item.id.includes(m.itemId) || m.itemId.includes(item.id))
+        );
+      if (!fuzzy) return item;
+      used.add(fuzzy.itemId);
+      return {
+        ...item,
+        completado: true,
+        archivo: createDocumentoFromUrl(fuzzy.nombre, fuzzy.url)
+      };
+    });
+
+    // Si el ítem del catálogo no existía, añade el enlace Drive como documento extra
+    for (const doc of pending) {
+      if (used.has(doc.itemId)) continue;
+      checklist.push({
+        id: doc.itemId,
+        label: doc.nombre,
+        completado: true,
+        requiereDocumento: true,
+        archivo: createDocumentoFromUrl(doc.nombre, doc.url)
+      });
+    }
+
+    return { ...etapa, checklist };
   });
 };
 
+/** Solo hoja ACTIVOS (sin CONTROL): reduce ruido operativo. */
+export const seedFromActivosCsv = (activosText: string): ManizalesSeed =>
+  mergeManizalesCsvs('', activosText);
+
 export const mergeManizalesCsvs = (controlText: string, activosText: string): ManizalesSeed => {
-  const controlRows = parseCsv(controlText)
-    .slice(1)
+  const controlRows = (controlText ? parseCsv(controlText).slice(1) : [])
     .map(parseControlRow)
     .filter((r): r is ManizalesRow => Boolean(r));
   const activosRows = parseCsv(activosText)

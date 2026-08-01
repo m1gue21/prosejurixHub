@@ -16,7 +16,7 @@ import {
 import { upsertChecklistArchivo } from './documentHelpers';
 
 const STORAGE_KEY = 'prosejurix_mock_usuarios_tramites';
-const SEED_VERSION = '2026-07-30-tramites-v9-tareas';
+const SEED_VERSION = '2026-08-01-drive-archivos-v11';
 const VERSION_KEY = 'prosejurix_mock_usuarios_seed_version';
 
 interface StoreShape {
@@ -540,7 +540,8 @@ export const mockUserStore = {
     tramiteId: string,
     etapaTipo: TipoEtapa,
     checklistItemId: string,
-    archivo: DocumentoArchivo
+    archivo: DocumentoArchivo,
+    meta?: { label?: string }
   ): Tramite {
     const store = readStore();
     const index = store.tramites.findIndex((t) => t.id === tramiteId);
@@ -550,7 +551,7 @@ export const mockUserStore = {
       if (e.tipo !== etapaTipo) return e;
       return {
         ...e,
-        checklist: upsertChecklistArchivo(e.checklist, checklistItemId, archivo)
+        checklist: upsertChecklistArchivo(e.checklist, checklistItemId, archivo, meta)
       };
     });
     const updated = { ...tramite, etapas };

@@ -177,35 +177,64 @@ if (uErr) {
   process.exit(1);
 }
 
+const { data: tramitesDb, error: tErr } = await supabase
+  .from('tramites')
+  .select('id, usuario_id, es_caso_adicional');
+if (tErr) {
+  console.error(tErr);
+  process.exit(1);
+}
+
 const byName = new Map();
 for (const u of users || []) {
   const keyN = normalizePersonName(u.nombre);
   if (!byName.has(keyN)) byName.set(keyN, u.id);
 }
 
+/** Trámite principal por usuario (no adicional; si no hay, el primero) */
+const principalByUser = new Map();
+for (const tr of tramitesDb || []) {
+  const uid = Number(tr.usuario_id);
+  if (!principalByUser.has(uid)) principalByUser.set(uid, tr.id);
+}
+for (const tr of tramitesDb || []) {
+  if (!tr.es_caso_adicional) principalByUser.set(Number(tr.usuario_id), tr.id);
+}
+
 let matched = 0;
-const payload = tareas.map((t) => {
+let skipped = 0;
+const payload = [];
+for (const t of tareas) {
   const usuarioId = byName.get(t.nombre_norm);
-  if (usuarioId) matched++;
-  return {
+  if (!usuarioId) {
+    skipped++;
+    continue; // solo clientes presentes en ACTIVOS / usuarios actuales
+  }
+  matched++;
+  payload.push({
     id: t.id,
     titulo: t.titulo,
     detalle: t.detalle,
     estado: t.estado,
     asignado_a: t.asignado_a,
-    usuario_id: usuarioId || null,
-    tramite_id: null,
+    usuario_id: usuarioId,
+    tramite_id: principalByUser.get(usuarioId) || null,
     origen: t.origen,
     origen_key: t.origen_key,
     creado_por: t.creado_por,
     creado_en: t.creado_en,
     actualizado_en: t.actualizado_en
-  };
-});
+  });
+}
 
 const { error } = await supabase.from('tareas').upsert(payload, { onConflict: 'id' });
 if (error) {
   console.error('Error upsert tareas:', error);
   process.exit(1);
 }
-console.log('Import Supabase OK', { total: payload.length, matched, unmatched: payload.length - matched });
+console.log('Import Supabase OK', {
+  totalCsv: tareas.length,
+  imported: payload.length,
+  matched,
+  skippedNoActivo: skipped
+});

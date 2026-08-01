@@ -1,31 +1,31 @@
 # Cutover Manizales → ProsejurixHub
 
-Checklist para apagar Sheets y operar con mock local o Supabase.
+Fuente de verdad de clientes/trámites: **hoja ACTIVOS** de `activos.xlsx` (`ACTIVOS_ONLY.csv`).  
+No se importa CONTROL (generaba ruido).
 
 ## Ya hecho en código
 
-- [x] SQL `supabase/migrations/001_usuarios_tramites.sql`
-- [x] Merge CSV CONTROL + ACTIVOS (`src/lib/csvManizales.ts`)
-- [x] Seed mock desde CSVs (`seedUsuariosTramites` + `SEED_VERSION` v8)
-- [x] Script `scripts/import-manizales.mjs` (+ `--supabase`)
+- [x] SQL `supabase/migrations/001_usuarios_tramites.sql` + `002_tareas.sql`
+- [x] Seed mock solo ACTIVOS (`seedUsuariosTramites` + `SEED_VERSION` activos-only)
+- [x] Script `scripts/import-manizales.mjs` (lee `ACTIVOS_ONLY.csv`)
+- [x] `npm run import:activos:supabase` (`--supabase --replace`)
+- [x] Tareas Excel solo si el cliente está en ACTIVOS
 - [x] `dataProvider` (`VITE_DATA_SOURCE=mock|supabase`)
-- [x] Hooks `useUsuarios` / `useAgenda` async
-- [x] Portal login vía dataProvider
-- [x] Campos alcance / gestión en ficha admin
-- [x] Keep-alive GitHub Action
 
-## Pendiente en tu proyecto Supabase / Vercel
+## Operación
 
-- [ ] Ejecutar el SQL de migración en el dashboard
-- [ ] `node scripts/import-manizales.mjs --supabase` con `.env` válido
-- [ ] Secrets `SUPABASE_URL` + `SUPABASE_ANON_KEY` para el workflow keep-alive
-- [ ] En producción: `VITE_DATA_SOURCE=supabase`
-- [ ] Confirmar que el equipo deja de editar los tabs de Sheets
-- [ ] (Opcional) Endurecer RLS antes de datos sensibles
+```bash
+# Regenerar JSON + reemplazar Supabase (~100 usuarios / ~102 trámites)
+npm run import:activos:supabase
+
+# Relinkear tareas Excel a esos usuarios
+npm run import:tareas:supabase
+```
+
+Mock local: al subir `SEED_VERSION`, se regenera el store (o borra localStorage del origen).
 
 ## Validación rápida
 
-1. `npm run dev` → `/admin/usuarios` muestra ~345 usuarios (mock CSV).
-2. Abrir un usuario con ACTIVOS: ver alcance, gestión y links Drive en checklist.
-3. Portal: login con un ID real del seed.
-4. Tras import Supabase: cambiar `VITE_DATA_SOURCE=supabase` y repetir 1–3.
+1. `npm run dev` → `/admin/usuarios` ~100 usuarios (no ~345).
+2. Abrir un activo: alcance, gestión, etapas.
+3. Agenda → Tareas: solo las que matchean clientes ACTIVOS.
