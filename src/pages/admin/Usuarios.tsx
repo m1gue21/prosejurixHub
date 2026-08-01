@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  ArrowUpDown,
   ChevronRight,
   LogOut,
   Plus,
@@ -30,6 +31,14 @@ import { useNotifications } from '../../components/common/NotificationProvider';
 import { useConfirm } from '../../components/common/ConfirmProvider';
 import { getStaffSession, logoutStaff } from '../../lib/staffSession';
 
+type SortMode = 'caducidad' | 'nombre_asc' | 'nombre_desc';
+
+const SORT_LABELS: Record<SortMode, string> = {
+  caducidad: 'Urgencia de caducidad',
+  nombre_asc: 'Nombre A → Z',
+  nombre_desc: 'Nombre Z → A'
+};
+
 const Usuarios = () => {
   const navigate = useNavigate();
   const { usuarios, isLoaded, stats, source, createUsuario, deleteUsuario } = useUsuarios();
@@ -38,6 +47,7 @@ const Usuarios = () => {
   const { notify } = useNotifications();
   const { confirm } = useConfirm();
   const [search, setSearch] = useState('');
+  const [sortMode, setSortMode] = useState<SortMode>('caducidad');
   const [showModal, setShowModal] = useState(false);
 
   const agendaHoy = useMemo(() => countToday(allItems), [allItems]);
@@ -54,6 +64,13 @@ const Usuarios = () => {
         );
 
     return [...list].sort((a, b) => {
+      if (sortMode === 'nombre_asc') {
+        return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+      }
+      if (sortMode === 'nombre_desc') {
+        return b.nombre.localeCompare(a.nombre, 'es', { sensitivity: 'base' });
+      }
+
       const ta = a.tramites.find((t) => !t.esCasoAdicional) || a.tramites[0];
       const tb = b.tramites.find((t) => !t.esCasoAdicional) || b.tramites[0];
       const ia = ta ? getCaducidadInfo(ta) : null;
@@ -65,7 +82,7 @@ const Usuarios = () => {
       const db = ib?.diasRestantes ?? 99999;
       return da - db;
     });
-  }, [usuarios, search]);
+  }, [usuarios, search, sortMode]);
 
   const cards = [
     { title: 'Usuarios', value: stats.totalUsuarios, icon: Users, gradient: 'from-sky-500 to-blue-600' },
@@ -165,20 +182,36 @@ const Usuarios = () => {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-900/5 sm:rounded-3xl sm:p-6">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-base font-semibold text-slate-900 sm:text-lg">Listado de usuarios</h2>
               <p className="text-xs text-slate-500 sm:text-sm">
-                Ordenados por urgencia de caducidad · {filtered.length} usuarios
+                Ordenados por {SORT_LABELS[sortMode].toLowerCase()} · {filtered.length} usuarios
               </p>
             </div>
-            <div className="w-full sm:max-w-sm">
-              <SearchBar
-                value={search}
-                onChange={setSearch}
-                placeholder="Buscar usuario..."
-                className="max-w-none"
-              />
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center lg:max-w-xl lg:justify-end">
+              <label className="flex min-w-0 flex-1 items-center gap-2 sm:max-w-[220px]">
+                <span className="sr-only">Ordenar por</span>
+                <ArrowUpDown className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+                <select
+                  value={sortMode}
+                  onChange={(e) => setSortMode(e.target.value as SortMode)}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  aria-label="Ordenar por"
+                >
+                  <option value="caducidad">Caducidad (urgencia)</option>
+                  <option value="nombre_asc">Nombre A → Z</option>
+                  <option value="nombre_desc">Nombre Z → A</option>
+                </select>
+              </label>
+              <div className="min-w-0 flex-1 sm:max-w-sm">
+                <SearchBar
+                  value={search}
+                  onChange={setSearch}
+                  placeholder="Buscar usuario..."
+                  className="max-w-none"
+                />
+              </div>
             </div>
           </div>
 

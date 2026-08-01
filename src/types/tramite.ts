@@ -56,6 +56,9 @@ export type SubestadoEtapa =
   | SubestadoMedicoLaboral
   | string;
 
+/** Tipo de recurso en la sección Archivos */
+export type DocumentoKind = 'archivo' | 'carpeta' | 'enlace';
+
 export interface DocumentoArchivo {
   id: string;
   nombre: string;
@@ -66,6 +69,8 @@ export interface DocumentoArchivo {
   dataUrl?: string;
   /** Enlace externo (Drive, etc.) */
   urlExterna?: string;
+  /** Por defecto archivo. Carpeta = folder Drive/local; enlace = URL genérica */
+  kind?: DocumentoKind;
 }
 
 export interface ChecklistItem {

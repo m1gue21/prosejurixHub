@@ -98,7 +98,8 @@ type StoreLike = {
     tramiteId: string,
     etapaTipo: TipoEtapa,
     checklistItemId: string,
-    archivo: DocumentoArchivo
+    archivo: DocumentoArchivo,
+    meta?: { label?: string }
   ) => Tramite | Promise<Tramite>;
   removeDocumento: (
     tramiteId: string,

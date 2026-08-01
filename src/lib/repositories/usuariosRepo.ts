@@ -605,14 +605,15 @@ export const usuariosRepo = {
     tramiteId: string,
     etapaTipo: TipoEtapa,
     checklistItemId: string,
-    archivo: DocumentoArchivo
+    archivo: DocumentoArchivo,
+    meta?: { label?: string }
   ): Promise<Tramite> {
     const tramite = await this.getTramite(tramiteId);
     if (!tramite) throw new Error(`Trámite ${tramiteId} no encontrado`);
     const etapa = tramite.etapas.find((e) => e.tipo === etapaTipo);
     if (!etapa) throw new Error(`Etapa ${etapaTipo} no encontrada`);
     return this.updateEtapa(tramiteId, etapaTipo, {
-      checklist: upsertChecklistArchivo(etapa.checklist, checklistItemId, archivo)
+      checklist: upsertChecklistArchivo(etapa.checklist, checklistItemId, archivo, meta)
     });
   },
 

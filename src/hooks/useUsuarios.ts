@@ -91,10 +91,11 @@ export const useUsuarios = () => {
     tramiteId: string,
     etapaTipo: TipoEtapa,
     checklistItemId: string,
-    archivo: DocumentoArchivo
+    archivo: DocumentoArchivo,
+    meta?: { label?: string }
   ) => {
     const updated = await Promise.resolve(
-      getDataStore().upsertDocumento(tramiteId, etapaTipo, checklistItemId, archivo)
+      getDataStore().upsertDocumento(tramiteId, etapaTipo, checklistItemId, archivo, meta)
     );
     await refresh();
     return updated;

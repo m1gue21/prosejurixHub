@@ -1,4 +1,10 @@
-import { ChecklistItem, DocumentoArchivo, TipoEtapa, Tramite } from '../types/tramite';
+import {
+  ChecklistItem,
+  DocumentoArchivo,
+  DocumentoKind,
+  TipoEtapa,
+  Tramite
+} from '../types/tramite';
 import { getEtapaLabel } from '../data/tramitesCatalog';
 
 export const MAX_DOC_BYTES = 1.5 * 1024 * 1024; // 1.5 MB por archivo en demo local
@@ -12,6 +18,25 @@ export interface DocumentoListItem {
   completado: boolean;
   archivo?: DocumentoArchivo;
 }
+
+export const isDriveUrl = (url?: string): boolean =>
+  Boolean(url && /drive\.google\.com/i.test(url));
+
+export const isDriveFolderUrl = (url?: string): boolean =>
+  Boolean(url && /drive\.google\.com\/(?:drive\/(?:u\/\d+\/)?folders\/)/i.test(url));
+
+/** Heurística: carpetas Drive usan /folders/ */
+export const detectDocumentoKindFromUrl = (url: string): DocumentoKind => {
+  if (isDriveFolderUrl(url)) return 'carpeta';
+  if (isDriveUrl(url)) return 'archivo';
+  return 'enlace';
+};
+
+export const mimeForKind = (kind: DocumentoKind): string => {
+  if (kind === 'carpeta') return 'application/vnd.google-apps.folder';
+  if (kind === 'enlace') return 'text/uri-list';
+  return 'application/pdf';
+};
 
 export const fileToDataUrl = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -39,19 +64,43 @@ export const createDocumentoFromFile = async (file: File): Promise<DocumentoArch
 export const createDocumentoFromUrl = (
   nombre: string,
   urlExterna: string,
-  mimeType = 'application/pdf'
+  opts?: { mimeType?: string; kind?: DocumentoKind }
+): DocumentoArchivo => {
+  const kind = opts?.kind || detectDocumentoKindFromUrl(urlExterna);
+  return {
+    id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    nombre,
+    mimeType: opts?.mimeType || mimeForKind(kind),
+    size: 0,
+    fechaAnadido: new Date().toISOString(),
+    urlExterna,
+    kind
+  };
+};
+
+export const createDocumentoCarpeta = (
+  nombre: string,
+  urlExterna?: string
 ): DocumentoArchivo => ({
   id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
   nombre,
-  mimeType,
+  mimeType: mimeForKind('carpeta'),
   size: 0,
   fechaAnadido: new Date().toISOString(),
-  urlExterna
+  urlExterna: urlExterna || undefined,
+  kind: 'carpeta'
 });
 
 export const getDocumentoSource = (archivo?: DocumentoArchivo): string | null => {
   if (!archivo) return null;
   return archivo.dataUrl || archivo.urlExterna || null;
+};
+
+export const getDocumentoKind = (archivo?: DocumentoArchivo): DocumentoKind => {
+  if (!archivo) return 'archivo';
+  if (archivo.kind) return archivo.kind;
+  if (archivo.urlExterna) return detectDocumentoKindFromUrl(archivo.urlExterna);
+  return 'archivo';
 };
 
 export const formatBytes = (bytes: number): string => {
@@ -104,13 +153,33 @@ export const listDocumentosTramite = (tramite: Tramite): DocumentoListItem[] => 
 export const upsertChecklistArchivo = (
   checklist: ChecklistItem[],
   itemId: string,
-  archivo: DocumentoArchivo | undefined
-): ChecklistItem[] =>
-  checklist.map((item) => {
+  archivo: DocumentoArchivo | undefined,
+  meta?: { label?: string }
+): ChecklistItem[] => {
+  const exists = checklist.some((item) => item.id === itemId);
+  if (!exists) {
+    if (!archivo) return checklist;
+    return [
+      ...checklist,
+      {
+        id: itemId,
+        label: meta?.label || archivo.nombre,
+        completado: true,
+        requiereDocumento: true,
+        archivo
+      }
+    ];
+  }
+  return checklist.map((item) => {
     if (item.id !== itemId) return item;
     return {
       ...item,
+      label: meta?.label || item.label,
       archivo,
       completado: archivo ? true : item.requiereDocumento ? false : item.completado
     };
   });
+};
+
+export const newChecklistItemId = (prefix = 'doc') =>
+  `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
