@@ -1,11 +1,17 @@
-import { CheckCircle2, Circle, PlayCircle, Ban, PauseCircle } from 'lucide-react';
+import { Ban, CheckCircle2, ChevronDown, Circle, PauseCircle, PlayCircle } from 'lucide-react';
+import EtapaPanel from './EtapaPanel';
 import { getEtapaCatalog, getEtapaLabel, PIPELINE_LAYOUT } from '../../data/tramitesCatalog';
-import { EtapaTramite, TipoEtapa, Tramite } from '../../types/tramite';
+import { ChecklistItem, EtapaTramite, TipoEtapa, Tramite } from '../../types/tramite';
 
 interface TramiteTimelineProps {
   tramite: Tramite;
   selectedTipo?: TipoEtapa;
-  onSelect: (tipo: TipoEtapa) => void;
+  onSelect: (tipo: TipoEtapa | undefined) => void;
+  onChangeEtapa: (
+    tipo: TipoEtapa,
+    updates: Partial<EtapaTramite> & { checklist?: ChecklistItem[] }
+  ) => void;
+  onSetEtapaActual: (tipo: TipoEtapa) => void;
 }
 
 const flatten = (layout: Array<TipoEtapa | TipoEtapa[]>): TipoEtapa[] =>
@@ -34,21 +40,27 @@ const estadoLabel: Record<EtapaTramite['estado'], string> = {
   omitida: 'Omitida'
 };
 
-const TramiteTimeline = ({ tramite, selectedTipo, onSelect }: TramiteTimelineProps) => {
+const TramiteTimeline = ({
+  tramite,
+  selectedTipo,
+  onSelect,
+  onChangeEtapa,
+  onSetEtapaActual
+}: TramiteTimelineProps) => {
   const byTipo = new Map(tramite.etapas.map((e) => [e.tipo, e]));
   const ordered = flatten(PIPELINE_LAYOUT)
     .map((tipo) => byTipo.get(tipo))
     .filter((e): e is EtapaTramite => Boolean(e));
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+    <div>
       <div className="mb-5 sm:mb-6">
         <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Timeline</p>
         <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
           Estado del trámite en el tiempo
         </h3>
         <p className="mt-1 text-xs text-slate-500 sm:text-sm">
-          Vista secuencial de las etapas. Las médicas pueden avanzar en paralelo.
+          Haz clic en una etapa para ver y editar su detalle. Las médicas pueden avanzar en paralelo.
         </p>
       </div>
 
@@ -56,7 +68,7 @@ const TramiteTimeline = ({ tramite, selectedTipo, onSelect }: TramiteTimelinePro
         {ordered.map((etapa) => {
           const catalog = getEtapaCatalog(etapa.tipo);
           const isActual = tramite.etapaActual === etapa.tipo;
-          const selected = selectedTipo === etapa.tipo;
+          const expanded = selectedTipo === etapa.tipo;
           const docsTotal = etapa.checklist.filter((c) => c.requiereDocumento).length;
           const docsOk = etapa.checklist.filter((c) => c.requiereDocumento && c.archivo).length;
           const parallelNote = catalog.paraleloCon?.length
@@ -73,47 +85,75 @@ const TramiteTimeline = ({ tramite, selectedTipo, onSelect }: TramiteTimelinePro
                 {iconFor(etapa)}
               </span>
 
-              <button
-                type="button"
-                disabled={etapa.estado === 'no_aplica'}
-                onClick={() => onSelect(etapa.tipo)}
-                className={`w-full rounded-2xl border px-3 py-3 text-left transition sm:px-4 ${
-                  selected
-                    ? 'border-blue-400 bg-blue-50 shadow-sm'
+              <div
+                className={`overflow-hidden rounded-2xl border transition ${
+                  expanded
+                    ? 'border-blue-400 bg-blue-50/40 shadow-sm'
                     : etapa.estado === 'no_aplica'
                       ? 'border-slate-100 bg-slate-50 opacity-60'
                       : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
-                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-slate-900">{getEtapaLabel(etapa.tipo)}</p>
-                    <p className="text-xs text-slate-500">
-                      {estadoLabel[etapa.estado]}
-                      {etapa.subestado ? ` · ${String(etapa.subestado).replace(/_/g, ' ')}` : ''}
-                    </p>
-                    {parallelNote && (
-                      <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-violet-600">
-                        {parallelNote}
+                <button
+                  type="button"
+                  disabled={etapa.estado === 'no_aplica'}
+                  onClick={() => onSelect(expanded ? undefined : etapa.tipo)}
+                  className="flex w-full items-start gap-2 px-3 py-3 text-left sm:px-4"
+                  aria-expanded={expanded}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-900">{getEtapaLabel(etapa.tipo)}</p>
+                        <p className="text-xs text-slate-500">
+                          {estadoLabel[etapa.estado]}
+                          {etapa.subestado
+                            ? ` · ${String(etapa.subestado).replace(/_/g, ' ')}`
+                            : ''}
+                        </p>
+                        {parallelNote && (
+                          <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-violet-600">
+                            {parallelNote}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-left text-xs text-slate-500 sm:text-right">
+                        {etapa.fechaInicio && <p>Inicio: {etapa.fechaInicio}</p>}
+                        {etapa.fechaFin && <p>Fin: {etapa.fechaFin}</p>}
+                        {docsTotal > 0 && (
+                          <p className="mt-1 font-medium text-slate-700">
+                            Docs {docsOk}/{docsTotal}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {!expanded && (etapa.notasCliente || etapa.notasInternas) && (
+                      <p className="mt-2 line-clamp-2 text-sm text-slate-600">
+                        {etapa.notasCliente || etapa.notasInternas}
                       </p>
                     )}
                   </div>
-                  <div className="text-left text-xs text-slate-500 sm:text-right">
-                    {etapa.fechaInicio && <p>Inicio: {etapa.fechaInicio}</p>}
-                    {etapa.fechaFin && <p>Fin: {etapa.fechaFin}</p>}
-                    {docsTotal > 0 && (
-                      <p className="mt-1 font-medium text-slate-700">
-                        Docs {docsOk}/{docsTotal}
-                      </p>
-                    )}
+                  {etapa.estado !== 'no_aplica' && (
+                    <ChevronDown
+                      className={`mt-0.5 h-5 w-5 shrink-0 text-slate-400 transition ${
+                        expanded ? 'rotate-180 text-blue-600' : ''
+                      }`}
+                    />
+                  )}
+                </button>
+
+                {expanded && (
+                  <div className="border-t border-blue-200/80 bg-white px-3 py-3 sm:px-4 sm:py-4">
+                    <EtapaPanel
+                      etapa={etapa}
+                      embedded
+                      isEtapaActual={isActual}
+                      onSetActual={() => onSetEtapaActual(etapa.tipo)}
+                      onChange={(updates) => onChangeEtapa(etapa.tipo, updates)}
+                    />
                   </div>
-                </div>
-                {(etapa.notasCliente || etapa.notasInternas) && (
-                  <p className="mt-2 line-clamp-2 text-sm text-slate-600">
-                    {etapa.notasCliente || etapa.notasInternas}
-                  </p>
                 )}
-              </button>
+              </div>
             </li>
           );
         })}

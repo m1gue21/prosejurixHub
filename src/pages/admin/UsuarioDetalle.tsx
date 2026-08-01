@@ -1,20 +1,28 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, BellPlus, FileText, GitBranch, MessagesSquare, Plus, Waypoints } from 'lucide-react';
+import {
+  ArrowLeft,
+  BellPlus,
+  ClipboardList,
+  FileText,
+  MessagesSquare,
+  Plus,
+  Waypoints
+} from 'lucide-react';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
-import TramitePipeline from '../../components/admin/TramitePipeline';
 import TramiteTimeline from '../../components/admin/TramiteTimeline';
 import ArchivosTramite from '../../components/admin/ArchivosTramite';
 import CaducidadPriorityPanel from '../../components/admin/CaducidadPriorityPanel';
 import ComunicacionesTimeline from '../../components/admin/ComunicacionesTimeline';
-import EtapaPanel from '../../components/admin/EtapaPanel';
+import TramiteTareasPanel from '../../components/admin/TramiteTareasPanel';
 import { useUsuarios } from '../../hooks/useUsuarios';
+import { useTareas } from '../../hooks/useTareas';
 import { getEtapaLabel } from '../../data/tramitesCatalog';
 import { Comunicacion, TipoEtapa, Tramite, UsuarioConTramites } from '../../types/tramite';
 import { useNotifications } from '../../components/common/NotificationProvider';
 
-type VistaTramite = 'pipeline' | 'timeline' | 'archivos' | 'comunicaciones';
+type VistaTramite = 'timeline' | 'archivos' | 'comunicaciones' | 'tareas';
 
 const UsuarioDetalle = () => {
   const { id } = useParams();
@@ -36,6 +44,7 @@ const UsuarioDetalle = () => {
     refresh
   } = useUsuarios();
   const { notify } = useNotifications();
+  const { tareas, updateTarea } = useTareas();
 
   const [usuario, setUsuario] = useState<UsuarioConTramites | null>(null);
   const [comunicaciones, setComunicaciones] = useState<Comunicacion[]>([]);
@@ -76,10 +85,26 @@ const UsuarioDetalle = () => {
     [usuario, tramiteId]
   );
 
-  const etapa = useMemo(
-    () => tramite?.etapas.find((e) => e.tipo === selectedEtapa),
-    [tramite, selectedEtapa]
-  );
+  const tareasDelTramite = useMemo(() => {
+    if (!usuario || !tramite) return [];
+    const principal =
+      usuario.tramites.find((t) => !t.esCasoAdicional) || usuario.tramites[0];
+    const esPrincipal = principal?.id === tramite.id;
+
+    return tareas
+      .filter((t) => {
+        if (t.tramiteId) return t.tramiteId === tramite.id;
+        // Tareas solo a nivel cliente: se muestran en el trámite principal
+        return esPrincipal && t.usuarioId === usuario.id;
+      })
+      .sort((a, b) => {
+        const rank = (e: string) =>
+          e === 'bloqueada' ? 0 : e === 'en_curso' ? 1 : e === 'pendiente' ? 2 : 3;
+        const d = rank(a.estado) - rank(b.estado);
+        if (d !== 0) return d;
+        return (b.creadoEn || '').localeCompare(a.creadoEn || '');
+      });
+  }, [usuario, tramite, tareas]);
 
   if (!usuario || !tramite) {
     return (
@@ -103,10 +128,25 @@ const UsuarioDetalle = () => {
       icon: MessagesSquare,
       count: comunicaciones.length
     },
+    {
+      id: 'tareas',
+      label: 'Tareas',
+      icon: ClipboardList,
+      count: tareasDelTramite.length
+    },
     { id: 'timeline', label: 'Timeline etapas', icon: Waypoints },
-    { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
     { id: 'archivos', label: 'Archivos', icon: FileText }
   ];
+
+  const goNuevaTarea = () =>
+    navigate('/admin/agenda', {
+      state: {
+        openCreate: true,
+        tab: 'tareas',
+        usuarioId: usuario.id,
+        tramiteId: tramite.id
+      }
+    });
 
   return (
     <div className="min-h-screen bg-slate-50 pb-8">
@@ -139,16 +179,7 @@ const UsuarioDetalle = () => {
               variant="outline"
               size="sm"
               className="w-full sm:w-auto"
-              onClick={() =>
-                navigate('/admin/agenda', {
-                  state: {
-                    openCreate: true,
-                    tab: 'tareas',
-                    usuarioId: usuario.id,
-                    tramiteId: tramite.id
-                  }
-                })
-              }
+              onClick={goNuevaTarea}
             >
               <BellPlus className="mr-2 h-4 w-4" />
               Nueva tarea
@@ -408,26 +439,36 @@ const UsuarioDetalle = () => {
             })}
           </div>
 
-          {vista === 'pipeline' && (
-            <TramitePipeline
-              tramite={tramite}
-              selectedTipo={selectedEtapa}
-              onSelect={(tipo) => setSelectedEtapa(tipo)}
-            />
-          )}
           {vista === 'timeline' && (
             <TramiteTimeline
               tramite={tramite}
               selectedTipo={selectedEtapa}
-              onSelect={(tipo) => setSelectedEtapa(tipo)}
+              onSelect={setSelectedEtapa}
+              onChangeEtapa={(tipo, updates) => {
+                void (async () => {
+                  await updateEtapa(tramite.id, tipo, updates);
+                  await reloadLocal();
+                })();
+              }}
+              onSetEtapaActual={(tipo) => {
+                void (async () => {
+                  await setEtapaActual(tramite.id, tipo);
+                  await reloadLocal();
+                  notify({
+                    type: 'success',
+                    title: 'Etapa actualizada',
+                    message: getEtapaLabel(tipo)
+                  });
+                })();
+              }}
             />
           )}
           {vista === 'archivos' && (
             <ArchivosTramite
               tramite={tramite}
-              onUpload={(etapaTipo, checklistItemId, archivo) => {
+              onUpload={(etapaTipo, checklistItemId, archivo, meta) => {
                 void (async () => {
-                  await upsertDocumento(tramite.id, etapaTipo, checklistItemId, archivo);
+                  await upsertDocumento(tramite.id, etapaTipo, checklistItemId, archivo, meta);
                   await reloadLocal();
                 })();
               }}
@@ -474,31 +515,26 @@ const UsuarioDetalle = () => {
               }}
             />
           )}
+          {vista === 'tareas' && (
+            <TramiteTareasPanel
+              tareas={tareasDelTramite}
+              onChangeEstado={(tareaId, estado) => {
+                void (async () => {
+                  await updateTarea(tareaId, { estado });
+                  notify({
+                    type: 'success',
+                    title: 'Tarea actualizada',
+                    message: estado.replace('_', ' ')
+                  });
+                })();
+              }}
+              onNuevaTarea={goNuevaTarea}
+              onOpenAgenda={() =>
+                navigate('/admin/agenda', { state: { tab: 'tareas', usuarioId: usuario.id } })
+              }
+            />
+          )}
         </section>
-
-        {vista !== 'archivos' && vista !== 'comunicaciones' && etapa && (
-          <EtapaPanel
-            etapa={etapa}
-            isEtapaActual={tramite.etapaActual === etapa.tipo}
-            onSetActual={() => {
-              void (async () => {
-                await setEtapaActual(tramite.id, etapa.tipo);
-                await reloadLocal();
-                notify({
-                  type: 'success',
-                  title: 'Etapa actualizada',
-                  message: getEtapaLabel(etapa.tipo)
-                });
-              })();
-            }}
-            onChange={(updates) => {
-              void (async () => {
-                await updateEtapa(tramite.id, etapa.tipo, updates);
-                await reloadLocal();
-              })();
-            }}
-          />
-        )}
 
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
           <h2 className="mb-3 text-base font-semibold sm:text-lg">Observaciones del trámite</h2>

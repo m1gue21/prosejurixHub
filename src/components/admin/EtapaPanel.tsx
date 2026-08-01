@@ -1,10 +1,12 @@
 import { useRef, useState } from 'react';
-import { Download, ExternalLink, Eye, Replace, Trash2, Upload } from 'lucide-react';
+import { Download, ExternalLink, Eye, Link2, Replace, Trash2, Upload } from 'lucide-react';
 import Button from '../common/Button';
+import Modal from '../common/Modal';
 import DocumentoPreviewModal from './DocumentoPreviewModal';
 import { getEtapaCatalog, getEtapaLabel } from '../../data/tramitesCatalog';
 import {
   createDocumentoFromFile,
+  createDocumentoFromUrl,
   formatBytes,
   formatFechaDoc,
   getDocumentoSource,
@@ -18,14 +20,24 @@ interface EtapaPanelProps {
   isEtapaActual: boolean;
   onChange: (updates: Partial<EtapaTramite> & { checklist?: ChecklistItem[] }) => void;
   onSetActual: () => void;
+  /** Dentro del timeline: sin tarjeta ni título duplicado */
+  embedded?: boolean;
 }
 
-const EtapaPanel = ({ etapa, isEtapaActual, onChange, onSetActual }: EtapaPanelProps) => {
+const EtapaPanel = ({
+  etapa,
+  isEtapaActual,
+  onChange,
+  onSetActual,
+  embedded = false
+}: EtapaPanelProps) => {
   const catalog = getEtapaCatalog(etapa.tipo);
   const { notify } = useNotifications();
   const inputRef = useRef<HTMLInputElement>(null);
   const [targetItemId, setTargetItemId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ archivo: DocumentoArchivo; titulo: string } | null>(null);
+  const [linkItem, setLinkItem] = useState<ChecklistItem | null>(null);
+  const [linkUrl, setLinkUrl] = useState('');
 
   const toggleChecklist = (itemId: string) => {
     const item = etapa.checklist.find((c) => c.id === itemId);
@@ -65,8 +77,33 @@ const EtapaPanel = ({ etapa, isEtapaActual, onChange, onSetActual }: EtapaPanelP
     onChange({ checklist: upsertChecklistArchivo(etapa.checklist, itemId, undefined) });
   };
 
+  const openLinkModal = (item: ChecklistItem) => {
+    setLinkItem(item);
+    setLinkUrl(item.archivo?.urlExterna || '');
+  };
+
+  const submitLink = () => {
+    if (!linkItem) return;
+    const url = linkUrl.trim();
+    if (!url) {
+      notify({ type: 'error', title: 'Falta el enlace', message: 'Pega una URL válida' });
+      return;
+    }
+    const archivo = createDocumentoFromUrl(linkItem.label, url);
+    onChange({ checklist: upsertChecklistArchivo(etapa.checklist, linkItem.id, archivo) });
+    notify({ type: 'success', title: 'Enlace guardado', message: linkItem.label });
+    setLinkItem(null);
+    setLinkUrl('');
+  };
+
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
+    <div
+      className={
+        embedded
+          ? ''
+          : 'rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6'
+      }
+    >
       <input
         ref={inputRef}
         type="file"
@@ -75,15 +112,23 @@ const EtapaPanel = ({ etapa, isEtapaActual, onChange, onSetActual }: EtapaPanelP
         onChange={handleFile}
       />
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Etapa</p>
-          <h3 className="text-lg font-semibold text-slate-900 sm:text-xl">{getEtapaLabel(etapa.tipo)}</h3>
-          <p className="mt-1 text-sm text-slate-500">
-            Vista cliente: {getEtapaLabel(etapa.tipo, true)}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <div
+        className={`flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between ${
+          embedded ? 'mb-3' : 'mb-4'
+        }`}
+      >
+        {!embedded && (
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Etapa</p>
+            <h3 className="text-lg font-semibold text-slate-900 sm:text-xl">
+              {getEtapaLabel(etapa.tipo)}
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Vista cliente: {getEtapaLabel(etapa.tipo, true)}
+            </p>
+          </div>
+        )}
+        <div className={`flex flex-wrap gap-2 ${embedded ? 'w-full' : ''}`}>
           {!isEtapaActual && etapa.estado !== 'no_aplica' && (
             <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={onSetActual}>
               Marcar como actual
@@ -92,6 +137,11 @@ const EtapaPanel = ({ etapa, isEtapaActual, onChange, onSetActual }: EtapaPanelP
           {isEtapaActual && (
             <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
               Etapa actual
+            </span>
+          )}
+          {embedded && (
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-500">
+              Cliente: {getEtapaLabel(etapa.tipo, true)}
             </span>
           )}
         </div>
@@ -200,8 +250,10 @@ const EtapaPanel = ({ etapa, isEtapaActual, onChange, onSetActual }: EtapaPanelP
                       {item.requiereDocumento && (
                         <span className="mt-0.5 block text-[11px] text-slate-400">
                           {item.archivo
-                            ? `${formatFechaDoc(item.archivo.fechaAnadido)} · ${formatBytes(item.archivo.size)}`
-                            : 'Requiere documento · pendiente'}
+                            ? item.archivo.urlExterna
+                              ? `Enlace · ${formatFechaDoc(item.archivo.fechaAnadido)}`
+                              : `${formatFechaDoc(item.archivo.fechaAnadido)} · ${formatBytes(item.archivo.size)}`
+                            : 'Sube un archivo o pega un enlace'}
                         </span>
                       )}
                     </span>
@@ -211,59 +263,83 @@ const EtapaPanel = ({ etapa, isEtapaActual, onChange, onSetActual }: EtapaPanelP
                     <div className="mt-2 grid w-full grid-cols-2 gap-2 sm:mt-0 sm:flex sm:w-auto sm:flex-wrap">
                       {item.archivo && src && (
                         <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full sm:w-auto"
-                            onClick={() =>
-                              setPreview({ archivo: item.archivo!, titulo: item.label })
-                            }
-                          >
-                            <Eye className="mr-1 h-3.5 w-3.5" />
-                            Ver
-                          </Button>
+                          {item.archivo.dataUrl && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full sm:w-auto"
+                              onClick={() =>
+                                setPreview({ archivo: item.archivo!, titulo: item.label })
+                              }
+                            >
+                              <Eye className="mr-1 h-3.5 w-3.5" />
+                              Ver
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="outline"
                             className="w-full sm:w-auto"
                             onClick={() => {
-                              const a = document.createElement('a');
-                              a.href = src;
-                              a.download = item.archivo!.nombre;
-                              a.target = '_blank';
-                              a.click();
+                              if (src.startsWith('data:')) {
+                                const a = document.createElement('a');
+                                a.href = src;
+                                a.download = item.archivo!.nombre;
+                                a.click();
+                              } else {
+                                window.open(src, '_blank', 'noopener,noreferrer');
+                              }
                             }}
                           >
-                            <Download className="mr-1 h-3.5 w-3.5" />
-                            Bajar
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full sm:w-auto"
-                            onClick={() => openFilePicker(item.id)}
-                          >
-                            <Replace className="mr-1 h-3.5 w-3.5" />
-                            Editar
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            className="w-full sm:w-auto"
-                            onClick={() => removeFile(item.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            {item.archivo.urlExterna ? (
+                              <>
+                                <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                                Abrir
+                              </>
+                            ) : (
+                              <>
+                                <Download className="mr-1 h-3.5 w-3.5" />
+                                Bajar
+                              </>
+                            )}
                           </Button>
                         </>
                       )}
-                      {!item.archivo && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full sm:w-auto"
+                        onClick={() => openLinkModal(item)}
+                      >
+                        <Link2 className="mr-1 h-3.5 w-3.5" />
+                        Enlace
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={item.archivo ? 'outline' : 'primary'}
+                        className="w-full sm:w-auto"
+                        onClick={() => openFilePicker(item.id)}
+                      >
+                        {item.archivo ? (
+                          <>
+                            <Replace className="mr-1 h-3.5 w-3.5" />
+                            Subir
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="mr-1 h-3.5 w-3.5" />
+                            Subir
+                          </>
+                        )}
+                      </Button>
+                      {item.archivo && (
                         <Button
                           size="sm"
-                          className="col-span-2 w-full sm:col-span-1 sm:w-auto"
-                          onClick={() => openFilePicker(item.id)}
+                          variant="danger"
+                          className="w-full sm:w-auto"
+                          onClick={() => removeFile(item.id)}
                         >
-                          <Upload className="mr-1 h-3.5 w-3.5" />
-                          Subir
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       )}
                     </div>
@@ -302,6 +378,43 @@ const EtapaPanel = ({ etapa, isEtapaActual, onChange, onSetActual }: EtapaPanelP
         titulo={preview?.titulo}
         onClose={() => setPreview(null)}
       />
+
+      <Modal
+        isOpen={Boolean(linkItem)}
+        onClose={() => {
+          setLinkItem(null);
+          setLinkUrl('');
+        }}
+        title="Pegar enlace Drive"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Casilla: <strong>{linkItem?.label}</strong>
+          </p>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-slate-700">URL</span>
+            <input
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5"
+              placeholder="https://drive.google.com/..."
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              autoFocus
+            />
+          </label>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setLinkItem(null);
+                setLinkUrl('');
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={submitLink}>Guardar enlace</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
